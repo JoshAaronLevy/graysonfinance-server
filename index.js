@@ -9,41 +9,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/status', (req, res) => {
-  const routes = [];
-
-  console.log('app: ', app);
-
-  if (app?._router && app?._router?.stack) {
-    console.log('app._router: ', app._router);
-    app._router.stack.forEach((middleware) => {
-      if (middleware.route) {
-        const methods = Object.keys(middleware.route.methods)
-          .map((m) => m.toUpperCase())
-          .join(', ');
-        routes.push({ method: methods, path: middleware.route.path });
-      } else if (middleware.name === 'router' && middleware.handle?.stack) {
-        middleware.handle.stack.forEach((handler) => {
-          const route = handler.route;
-          if (route) {
-            const methods = Object.keys(route.methods)
-              .map((m) => m.toUpperCase())
-              .join(', ');
-            routes.push({ method: methods, path: route.path });
-          }
-        });
-      }
-    });
-  }
-
-  res.json({
-    status: 'ok',
-    message: 'MoneyBuddy server is running',
-    version: '1.1.4',
-    endpoints: routes
-  });
-});
-
 const BASE_URL = 'https://api.dify.ai/v1/workflows';
 
 const WORKFLOW_MAP = {
@@ -94,6 +59,39 @@ app.post('/api/analyze/:type', async (req, res) => {
 
     res.status(statusCode).type('application/json').json({ error: errorData });
   }
+});
+
+app.get('/api/status', (req, res) => {
+  const routes = [];
+
+  if (app?._router?.stack) {
+    console.log('app._router: ', app._router);
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        const methods = Object.keys(middleware.route.methods)
+          .map((m) => m.toUpperCase())
+          .join(', ');
+        routes.push({ method: methods, path: middleware.route.path });
+      } else if (middleware.name === 'router' && middleware.handle?.stack) {
+        middleware.handle.stack.forEach((handler) => {
+          const route = handler.route;
+          if (route) {
+            const methods = Object.keys(route.methods)
+              .map((m) => m.toUpperCase())
+              .join(', ');
+            routes.push({ method: methods, path: route.path });
+          }
+        });
+      }
+    });
+  }
+
+  res.json({
+    status: 'ok',
+    message: 'MoneyBuddy server is running',
+    version: '1.1.5',
+    endpoints: routes
+  });
 });
 
 const PORT = process.env.PORT || 3000;
