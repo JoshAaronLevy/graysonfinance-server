@@ -20,40 +20,47 @@ app.use(express.json());
 // };
 
 app.post('/api/analyze/income', async (req, res) => {
-  console.log('[Server] 🧪 Hardcoded /api/analyze/income hit');
+  console.log('[Server] 🧠 Incoming request to /api/analyze/income');
   const inputs = req.body.inputs;
 
-  const workflowId = process.env.DIFY_INCOME_WORKFLOW_ID;
+  if (!inputs?.query) {
+    return res.status(400).json({ error: 'Missing required input: query' });
+  }
 
-  if (!workflowId) {
-    console.warn(`[Server] ❌ DIFY_INCOME_WORKFLOW_ID is not defined`);
-    return res.status(500).json({ error: 'DIFY_INCOME_WORKFLOW_ID not defined' });
+  const appId = process.env.DIFY_INCOME_APP_ID;
+  const apiKey = process.env.DIFY_API_KEY;
+
+  if (!appId || !apiKey) {
+    return res.status(500).json({ error: 'Missing Dify app ID or API key' });
   }
 
   try {
     const response = await axios.post(
-      `https://api.dify.ai/v1/workflows/${workflowId}/run`,
-      { inputs },
+      'https://api.dify.ai/v1/chat-messages',
+      {
+        inputs,
+        response_mode: 'blocking',
+        conversation_id: null, // optional: set to null for a new conversation
+        user: 'moneybuddy-user' // optional: useful if you want to track users
+      },
       {
         headers: {
-          Authorization: `Bearer ${process.env.DIFY_API_KEY}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'x-app-id': appId
         }
       }
     );
 
-    console.log(`[Server] ✅ Response from Dify:`, response.data);
+    console.log('[Server] ✅ Dify response:', response.data);
     res.json(response.data);
   } catch (error) {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
 
-    console.error(`[Server] 🔥 Dify API Error`);
-    console.error(`[Server] Status Code: ${statusCode}`);
-    console.error(`[Server] Message:`, error.message);
-    console.error(`[Server] Full Response:`, errorData);
-
-    res.status(statusCode).type('application/json').json({ error: errorData });
+    console.error('[Server] ❌ Error calling Dify:', error.message);
+    res.status(statusCode).json({ error: errorData });
   }
 });
 
@@ -127,7 +134,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy server is running',
-    version: '1.2.5',
+    version: '1.3.5',
     endpoints: routes
   });
 });
