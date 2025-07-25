@@ -9,6 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/status', (req, res) => {
+  res.json({ status: 'ok', message: 'MoneyBuddy server is running' });
+});
+
 const BASE_URL = 'https://api.dify.ai/v1/workflows';
 
 const WORKFLOW_MAP = {
