@@ -10,7 +10,30 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok', message: 'MoneyBuddy server is running', version: '1.0.2' });
+  const routes = [];
+
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      const method = Object.keys(middleware.route.methods)[0].toUpperCase();
+      routes.push({
+        method,
+        path: middleware.route.path
+      });
+    } else if (middleware.name === 'router' && middleware.handle.stack) {
+      middleware.handle.stack.forEach((handler) => {
+        const route = handler.route;
+        if (route) {
+          const method = Object.keys(route.methods)[0].toUpperCase();
+          routes.push({
+            method,
+            path: route.path
+          });
+        }
+      });
+    }
+  });
+
+  res.json({ status: 'ok', message: 'MoneyBuddy server is running', version: '1.1.3', endpoints: routes });
 });
 
 const BASE_URL = 'https://api.dify.ai/v1/workflows';
@@ -24,6 +47,7 @@ const WORKFLOW_MAP = {
 };
 
 app.post('/api/analyze/:type', async (req, res) => {
+  console.log('[Server] req: ', req.body);
   const { type } = req.params;
   const inputs = req.body.inputs;
   const workflowId = WORKFLOW_MAP[type];
