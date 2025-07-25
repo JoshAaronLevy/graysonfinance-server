@@ -15,6 +15,7 @@ app.get('/api/status', (req, res) => {
   console.log('app: ', app);
 
   if (app?._router && app?._router?.stack) {
+    console.log('app._router: ', app._router);
     app._router.stack.forEach((middleware) => {
       if (middleware.route) {
         const methods = Object.keys(middleware.route.methods)
@@ -38,7 +39,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy server is running',
-    version: '1.1.3',
+    version: '1.1.4',
     endpoints: routes
   });
 });
