@@ -12,7 +12,9 @@ app.use(express.json());
 app.get('/api/status', (req, res) => {
   const routes = [];
 
-  if (app._router && app._router.stack) {
+  console.log('app: ', app);
+
+  if (app?._router && app?._router?.stack) {
     app._router.stack.forEach((middleware) => {
       if (middleware.route) {
         const methods = Object.keys(middleware.route.methods)
