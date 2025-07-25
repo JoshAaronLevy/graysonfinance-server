@@ -12,28 +12,33 @@ app.use(express.json());
 app.get('/api/status', (req, res) => {
   const routes = [];
 
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      const method = Object.keys(middleware.route.methods)[0].toUpperCase();
-      routes.push({
-        method,
-        path: middleware.route.path
-      });
-    } else if (middleware.name === 'router' && middleware.handle.stack) {
-      middleware.handle.stack.forEach((handler) => {
-        const route = handler.route;
-        if (route) {
-          const method = Object.keys(route.methods)[0].toUpperCase();
-          routes.push({
-            method,
-            path: route.path
-          });
-        }
-      });
-    }
-  });
+  if (app._router && app._router.stack) {
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        const methods = Object.keys(middleware.route.methods)
+          .map((m) => m.toUpperCase())
+          .join(', ');
+        routes.push({ method: methods, path: middleware.route.path });
+      } else if (middleware.name === 'router' && middleware.handle?.stack) {
+        middleware.handle.stack.forEach((handler) => {
+          const route = handler.route;
+          if (route) {
+            const methods = Object.keys(route.methods)
+              .map((m) => m.toUpperCase())
+              .join(', ');
+            routes.push({ method: methods, path: route.path });
+          }
+        });
+      }
+    });
+  }
 
-  res.json({ status: 'ok', message: 'MoneyBuddy server is running', version: '1.1.3', endpoints: routes });
+  res.json({
+    status: 'ok',
+    message: 'MoneyBuddy server is running',
+    version: '1.1.3',
+    endpoints: routes
+  });
 });
 
 const BASE_URL = 'https://api.dify.ai/v1/workflows';
