@@ -51,9 +51,16 @@ app.post('/api/analyze/:type', async (req, res) => {
 
     res.json(response.data);
   } catch (error) {
-    console.error('🔥 Dify API error:', error.response?.data || error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.response?.data || error.message
+    const statusCode = error.response?.status || 500;
+    const errorData = error.response?.data || error.message;
+
+    console.error(`[Server] 🔥 Dify API Error`);
+    console.error(`[Server] Status Code: ${statusCode}`);
+    console.error(`[Server] Message:`, error.message);
+    console.error(`[Server] Full Response:`, errorData);
+
+    res.status(statusCode).json({
+      error: errorData
     });
   }
 });
