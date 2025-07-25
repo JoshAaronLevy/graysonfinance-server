@@ -15,15 +15,20 @@ const WORKFLOW_MAP = {
   income: process.env.DIFY_INCOME_WORKFLOW_ID,
   debt: process.env.DIFY_DEBT_WORKFLOW_ID,
   expenses: process.env.DIFY_EXPENSES_WORKFLOW_ID,
-  savings: process.env.DIFY_SAVINGS_WORKFLOW_ID
+  savings: process.env.DIFY_SAVINGS_WORKFLOW_ID,
+  chats: process.env.DIFY_CHATS_WORKFLOW_ID
 };
 
 app.post('/api/analyze/:type', async (req, res) => {
   const { type } = req.params;
   const workflowId = WORKFLOW_MAP[type];
 
+  console.log(`[REQUEST] Type: ${type}`);
+  console.log(`[WORKFLOW] ID: ${workflowId}`);
+
   if (!workflowId) {
-    return res.status(400).json({ error: 'Invalid analysis type' });
+    console.warn(`❌ Invalid analysis type requested: ${type}`);
+    return res.status(400).json({ error: `Invalid analysis type: ${type}` });
   }
 
   try {
@@ -40,7 +45,7 @@ app.post('/api/analyze/:type', async (req, res) => {
 
     res.json(response.data);
   } catch (error) {
-    console.error('Dify API error:', error.response?.data || error.message);
+    console.error('🔥 Dify API error:', error.response?.data || error.message);
     res.status(error.response?.status || 500).json({
       error: error.response?.data || error.message
     });
@@ -48,4 +53,4 @@ app.post('/api/analyze/:type', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Dify proxy server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Dify proxy server running on http://localhost:${PORT}`));
