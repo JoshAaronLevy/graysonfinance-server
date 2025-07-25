@@ -13,7 +13,7 @@ app.get('/api/status', (req, res) => {
   res.json({ status: 'ok', message: 'MoneyBuddy server is running' });
 });
 
-const BASE_URL = 'https://api.dify.ai/v1/workflows';
+const BASE_URL = 'https://api.dify.ai/v1';
 
 const WORKFLOW_MAP = {
   income: process.env.DIFY_INCOME_WORKFLOW_ID,
@@ -24,11 +24,13 @@ const WORKFLOW_MAP = {
 };
 
 app.post('/api/analyze/:type', async (req, res) => {
+  console.log('Request: ', req);
   const { type } = req.params;
   const workflowId = WORKFLOW_MAP[type];
 
-  console.log(`[REQUEST] Type: ${type}`);
-  console.log(`[WORKFLOW] ID: ${workflowId}`);
+  console.log(`[Server] Incoming request to /api/analyze/${type}`);
+  console.log(`[Server] Workflow ID: ${workflowId}`);
+  console.log(`[Server] Inputs:`, inputs);
 
   if (!workflowId) {
     console.warn(`❌ Invalid analysis type requested: ${type}`);
