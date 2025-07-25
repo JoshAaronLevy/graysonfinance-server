@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok', message: 'MoneyBuddy server is running', version: '1.0.1' });
+  res.json({ status: 'ok', message: 'MoneyBuddy server is running', version: '1.0.2' });
 });
 
 const BASE_URL = 'https://api.dify.ai/v1/workflows';
@@ -24,23 +24,23 @@ const WORKFLOW_MAP = {
 };
 
 app.post('/api/analyze/:type', async (req, res) => {
-  console.log('Request: ', req);
   const { type } = req.params;
+  const inputs = req.body.inputs;
   const workflowId = WORKFLOW_MAP[type];
 
-  console.log(`[Server] Incoming request to /api/analyze/${type}`);
-  console.log(`[Server] Workflow ID: ${workflowId}`);
-  console.log(`[Server] Inputs:`, inputs);
+  console.log(`[Server] 🔵 Incoming request to /api/analyze/${type}`);
+  console.log(`[Server] 🧠 Workflow ID: ${workflowId}`);
+  console.log(`[Server] 📦 Inputs:`, inputs);
 
   if (!workflowId) {
-    console.warn(`❌ Invalid analysis type requested: ${type}`);
+    console.warn(`[Server] ❌ Invalid analysis type: ${type}`);
     return res.status(400).json({ error: `Invalid analysis type: ${type}` });
   }
 
   try {
     const response = await axios.post(
       `${BASE_URL}/${workflowId}/run`,
-      { inputs: req.body.inputs },
+      { inputs },
       {
         headers: {
           Authorization: `Bearer ${process.env.DIFY_API_KEY}`,
@@ -49,6 +49,7 @@ app.post('/api/analyze/:type', async (req, res) => {
       }
     );
 
+    console.log(`[Server] ✅ Response from Dify:`, response.data);
     res.json(response.data);
   } catch (error) {
     const statusCode = error.response?.status || 500;
@@ -59,9 +60,7 @@ app.post('/api/analyze/:type', async (req, res) => {
     console.error(`[Server] Message:`, error.message);
     console.error(`[Server] Full Response:`, errorData);
 
-    res.status(statusCode).json({
-      error: errorData
-    });
+    res.status(statusCode).type('application/json').json({ error: errorData });
   }
 });
 
