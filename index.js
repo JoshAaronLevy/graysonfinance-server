@@ -61,6 +61,9 @@ app.post('/api/analyze/income', async (req, res) => {
     const errorData = error.response?.data || error.message;
 
     console.error('[Server] ❌ Error calling Dify:', error.message);
+    console.error('[Server] 🔥 Full error object:', error);
+    console.error('[Server] 🔥 Error response data:', errorData);
+
     res.status(statusCode).json({ error: errorData });
   }
 });
@@ -69,7 +72,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '1.3.7'
+    version: '1.3.8'
   });
 });
 
