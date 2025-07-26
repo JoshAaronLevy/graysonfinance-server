@@ -21,7 +21,9 @@ const apiKey = process.env.DIFY_API_KEY;
 
 app.post('/api/analyze/:type', async (req, res) => {
   const { type } = req.params;
+  console.log(`[Server] 📝 Received request for type: ${type}`);
   const inputs = req.body.inputs;
+  console.log('[Server] 📥 Inputs received: ', inputs);
 
   console.log(`[Server] 🔍 Incoming request to /api/analyze/${type}`);
 
@@ -37,6 +39,7 @@ app.post('/api/analyze/:type', async (req, res) => {
 
   try {
     const userQuery = inputs.query;
+    console.log(`[Server] 📤 Forwarding query to Dify app ${appId}: `, userQuery);
 
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
@@ -58,6 +61,7 @@ app.post('/api/analyze/:type', async (req, res) => {
     );
 
     const answer = response.data.answer;
+    console.log('[Server] 📥 Received response from Dify: ', answer);
     const outputs = response.data.outputs || {};
 
     res.json({ answer, outputs });
@@ -77,7 +81,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.0',
+    version: '2.0.1',
     supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
