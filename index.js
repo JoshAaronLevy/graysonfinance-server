@@ -69,7 +69,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '1.3.6'
+    version: '1.3.7'
   });
 });
 
