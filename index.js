@@ -9,22 +9,30 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/analyze/income', async (req, res) => {
-  console.log('[Server] 🧠 Incoming request to /api/analyze/income');
+const APP_ID_MAP = {
+  income: process.env.DIFY_INCOME_APP_ID,
+  debt: process.env.DIFY_DEBT_APP_ID,
+  expenses: process.env.DIFY_EXPENSES_APP_ID,
+  savings: process.env.DIFY_SAVINGS_APP_ID,
+  chats: process.env.DIFY_CHATS_APP_ID
+};
+
+const apiKey = process.env.DIFY_API_KEY;
+
+app.post('/api/analyze/:type', async (req, res) => {
+  const { type } = req.params;
   const inputs = req.body.inputs;
+
+  console.log(`[Server] 🔍 Incoming request to /api/analyze/${type}`);
 
   if (!inputs?.query) {
     return res.status(400).json({ error: 'Missing required input: query' });
   }
 
-  const appId = process.env.DIFY_INCOME_APP_ID;
-  const apiKey = process.env.DIFY_API_KEY;
-
-  console.log('[Server] 🔍 Loaded DIFY_INCOME_APP_ID:', appId);
-  console.log('[Server] 🔍 Loaded DIFY_API_KEY:', apiKey ? '✔️ Present' : '❌ Missing');
+  const appId = APP_ID_MAP[type];
 
   if (!appId || !apiKey) {
-    return res.status(500).json({ error: 'Missing Dify app ID or API key' });
+    return res.status(500).json({ error: 'Missing Dify App ID or API key' });
   }
 
   try {
@@ -52,18 +60,12 @@ app.post('/api/analyze/income', async (req, res) => {
     const answer = response.data.answer;
     const outputs = response.data.outputs || {};
 
-    console.log('[Server] ✅ Dify answer:', answer);
-    console.log('[Server] 📦 Outputs:', outputs);
-
-    res.json({
-      answer,
-      outputs
-    });
+    res.json({ answer, outputs });
   } catch (error) {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
 
-    console.error('[Server] ❌ Error calling Dify:', error.message);
+    console.error(`[Server] ❌ Error calling Dify for type "${type}":`, error.message);
     console.error('[Server] 🔥 Full error object:', error);
     console.error('[Server] 🔥 Error response data:', errorData);
 
@@ -75,7 +77,8 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '1.3.9'
+    version: '2.0.0',
+    supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
 
