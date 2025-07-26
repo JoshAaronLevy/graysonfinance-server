@@ -46,7 +46,7 @@ app.post('/api/analyze/:type', async (req, res) => {
         inputs: {}, // required by Dify even if not used
         response_mode: 'blocking',
         conversation_id: null,
-        user: 'moneybuddy-user'
+        user: `test-${Date.now()}`, // unique user ID for the session
       },
       {
         headers: {
@@ -80,7 +80,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.4',
+    version: '2.0.5',
     supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
