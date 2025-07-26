@@ -30,7 +30,7 @@ app.post('/api/opening/:type', async (req, res) => {
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
       {
-        query: '', // blank query triggers opener
+        query: '__opener__', // 👈 placeholder query to trigger the opener message
         inputs: {},
         response_mode: 'blocking',
         conversation_id: null,
@@ -123,7 +123,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.1.7',
+    version: '2.1.8',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
