@@ -19,30 +19,41 @@ const APP_ID_MAP = {
 
 const apiKey = process.env.DIFY_API_KEY;
 
+if (!apiKey) {
+  console.error('[Startup] ❌ DIFY_API_KEY is missing. Exiting...');
+  process.exit(1);
+} else {
+  console.log(`[Startup] ✅ DIFY_API_KEY loaded (starts with: ${apiKey.slice(0, 6)}...)`);
+}
+
 app.post('/api/opening/:type', async (req, res) => {
   const { type } = req.params;
   const appId = APP_ID_MAP[type];
-  if (!appId || !apiKey) {
-    return res.status(500).json({ error: 'Missing Dify App ID or API key' });
+
+  if (!appId) {
+    return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
   }
 
   try {
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'x-app-id': appId
+    };
+
+    console.log(`[Server] 🎯 Requesting opener for type "${type}" with headers:`);
+    console.log(headers);
+
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
       {
-        query: `Hi! Let's begin`, // 👈 placeholder query to trigger the opener message
+        query: 'Hi! Let’s begin', // Or: '__opener__' if using custom opener logic
         inputs: {},
         response_mode: 'blocking',
         conversation_id: null,
         user: `starter-${Date.now()}`
       },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'x-app-id': appId
-        }
-      }
+      { headers }
     );
 
     const answer = response.data.answer || 'Hi! Let’s get started.';
@@ -54,7 +65,6 @@ app.post('/api/opening/:type', async (req, res) => {
 
     console.error(`[Server] ❌ Failed to get opener for type "${type}":`, error.message);
     console.error('[Server] 🔥 Error response data:', errorData);
-
     res.status(statusCode).json({ error: errorData });
   }
 });
@@ -71,12 +81,20 @@ app.post('/api/analyze/:type', async (req, res) => {
   }
 
   const appId = APP_ID_MAP[type];
-  if (!appId || !apiKey) {
-    return res.status(500).json({ error: 'Missing Dify App ID or API key' });
+  if (!appId) {
+    return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
   }
+
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'x-app-id': appId
+  };
 
   try {
     console.log(`[Server] 📤 Forwarding query to Dify app ID: ${appId}`);
+    console.log('[Server] 🧾 With headers:', headers);
+
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
       {
@@ -86,13 +104,7 @@ app.post('/api/analyze/:type', async (req, res) => {
         conversation_id: null,
         user: `test-${Date.now()}`
       },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'x-app-id': appId
-        }
-      }
+      { headers }
     );
 
     console.log('[Server] 📥 Full response from Dify:');
@@ -100,11 +112,11 @@ app.post('/api/analyze/:type', async (req, res) => {
 
     const answer = response.data.answer;
     const outputs = response.data.outputs || {};
-    const modelInfo = response.data.metadata || {}; // sometimes included
+    const modelInfo = response.data.metadata || {};
 
     console.log('[Server] 💬 Answer:', answer);
     console.log('[Server] 📦 Outputs:', outputs);
-    console.log('[Server] 🧠 Model Metadata (if available):', modelInfo);
+    console.log('[Server] 🧠 Model Metadata:', modelInfo);
 
     res.json({ answer, outputs });
   } catch (error) {
@@ -123,7 +135,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.2.0',
+    version: '2.2.1',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
