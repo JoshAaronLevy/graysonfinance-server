@@ -20,6 +20,9 @@ app.post('/api/analyze/income', async (req, res) => {
   const appId = process.env.DIFY_INCOME_APP_ID;
   const apiKey = process.env.DIFY_API_KEY;
 
+  console.log('[Server] 🔍 Loaded DIFY_INCOME_APP_ID:', appId);
+  console.log('[Server] 🔍 Loaded DIFY_API_KEY:', apiKey ? '✔️ Present' : '❌ Missing');
+
   if (!appId || !apiKey) {
     return res.status(500).json({ error: 'Missing Dify app ID or API key' });
   }
@@ -72,7 +75,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '1.3.8'
+    version: '1.3.9'
   });
 });
 
