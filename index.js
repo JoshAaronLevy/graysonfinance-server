@@ -45,7 +45,7 @@ app.post('/api/analyze/:type', async (req, res) => {
       'https://api.dify.ai/v1/chat-messages',
       {
         query: userQuery,
-        inputs: { query: userQuery },
+        inputs: {},
         response_mode: 'blocking',
         conversation_id: null,
         user: 'moneybuddy-user'
@@ -54,7 +54,6 @@ app.post('/api/analyze/:type', async (req, res) => {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
           'x-app-id': appId
         }
       }
@@ -63,6 +62,7 @@ app.post('/api/analyze/:type', async (req, res) => {
     const answer = response.data.answer;
     console.log('[Server] 📥 Received response from Dify: ', answer);
     const outputs = response.data.outputs || {};
+    console.log('[Server] 📦 Outputs from Dify: ', outputs);
 
     res.json({ answer, outputs });
   } catch (error) {
@@ -81,7 +81,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.1',
+    version: '2.0.2',
     supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
