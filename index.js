@@ -80,7 +80,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.3',
+    version: '2.0.4',
     supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
