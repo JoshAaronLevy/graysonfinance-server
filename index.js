@@ -55,7 +55,6 @@ app.post('/api/analyze/:type', async (req, res) => {
       }
     );
 
-    // Log the full response for debugging
     console.log('[Server] 📥 Full response from Dify:');
     console.dir(response.data, { depth: null });
 
@@ -84,7 +83,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.6',
+    version: '2.0.7',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
