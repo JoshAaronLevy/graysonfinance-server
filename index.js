@@ -21,14 +21,13 @@ const apiKey = process.env.DIFY_API_KEY;
 
 app.post('/api/analyze/:type', async (req, res) => {
   const { type } = req.params;
+  const userQuery = req.body.query;
+
   console.log(`[Server] 📝 Received request for type: ${type}`);
-  const inputs = req.body.inputs;
-  console.log('[Server] 📥 Inputs received: ', inputs);
+  console.log('[Server] 📥 Raw request body: ', req.body);
 
-  console.log(`[Server] 🔍 Incoming request to /api/analyze/${type}`);
-
-  if (!inputs?.query) {
-    return res.status(400).json({ error: 'Missing required input: query' });
+  if (!userQuery || typeof userQuery !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid input: query' });
   }
 
   const appId = APP_ID_MAP[type];
@@ -38,14 +37,13 @@ app.post('/api/analyze/:type', async (req, res) => {
   }
 
   try {
-    const userQuery = inputs.query;
-    console.log(`[Server] 📤 Forwarding query to Dify app ${appId}: `, userQuery);
+    console.log(`[Server] 📤 Forwarding query to Dify app ${appId}:`, userQuery);
 
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
       {
         query: userQuery,
-        inputs: {},
+        inputs: {}, // required by Dify even if not used
         response_mode: 'blocking',
         conversation_id: null,
         user: 'moneybuddy-user'
@@ -60,8 +58,9 @@ app.post('/api/analyze/:type', async (req, res) => {
     );
 
     const answer = response.data.answer;
-    console.log('[Server] 📥 Received response from Dify: ', answer);
     const outputs = response.data.outputs || {};
+
+    console.log('[Server] 📥 Received response from Dify: ', answer);
     console.log('[Server] 📦 Outputs from Dify: ', outputs);
 
     res.json({ answer, outputs });
@@ -81,10 +80,12 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.0.2',
+    version: '2.0.3',
     supportedEndpoints: Object.keys(APP_ID_MAP).map(t => `/api/analyze/${t}`)
   });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Dify proxy server running on http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Dify proxy server running on http://localhost:${PORT}`)
+);
