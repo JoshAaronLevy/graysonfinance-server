@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
@@ -51,9 +52,11 @@ app.post('/api/opening/:type', async (req, res) => {
 app.post('/api/analyze/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
+  const userId = uuidv4(); // ✅ Generate a fresh user ID
 
   console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
+  console.log(`[Server] 🧑‍💻 Generated user ID: ${userId}`);
 
   if (!userQuery || typeof userQuery !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid input: query' });
@@ -71,8 +74,8 @@ app.post('/api/analyze/:type', async (req, res) => {
   };
 
   try {
-    console.log(`[Server] 📤 Forwarding query to Dify app ID: ${appId}`);
-    console.log('[Server] 🧾 With headers:', headers);
+    console.log(`[Server] 📤 Forwarding query to Dify (App ID: ${appId})`);
+    console.log('[Server] 🧾 Headers:', headers);
 
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
@@ -81,16 +84,17 @@ app.post('/api/analyze/:type', async (req, res) => {
         inputs: {},
         response_mode: 'blocking',
         conversation_id: null,
-        user: `test-${Date.now()}`
+        user: userId
       },
       { headers }
     );
 
-    const answer = response.data.answer;
-    const outputs = response.data.outputs || {};
+    const { answer, outputs = {}, conversation_id } = response.data;
 
     console.log('[Server] 💬 Answer:', answer);
     console.log('[Server] 📦 Outputs:', outputs);
+    console.log(`[Server] 🧑‍💻 Returned user ID: ${userId}`);
+    console.log(`[Server] 🧵 Returned conversation ID: ${conversation_id}`);
 
     res.json({ answer, outputs });
   } catch (error) {
@@ -109,7 +113,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.4.5',
+    version: '2.4.6',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
