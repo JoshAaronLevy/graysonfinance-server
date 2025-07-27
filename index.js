@@ -30,8 +30,8 @@ app.post('/api/opening/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
 
   const customOpeners = {
-    income: "Welcome to MoneyBuddy! Let's get started. What is your net monthly income after taxes?",
-    debt: 'What does your current debt situation look like? You can give a general response, like "$30,000", or a more detailed breakdown.',
+    income: `Welcome to MoneyBuddy! Let's get started.\nWhat is your net monthly income after taxes?`,
+    debt: `What does your current debt situation look like (excluding assets like a car or home)?\nYou can give a general response, like "$30,000", or a more detailed breakdown.`,
     expenses: 'Can you describe your typical monthly expenses? You can list categories or just give a ballpark figure.',
     savings: 'Do you currently have any savings? If so, how much and what are they for (e.g., emergency fund, vacation, etc.)?',
     chats: 'Welcome to MoneyBuddy! How can I assist you today? You can ask about anything related to your finances.'
@@ -109,7 +109,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.3.4',
+    version: '2.3.5',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
