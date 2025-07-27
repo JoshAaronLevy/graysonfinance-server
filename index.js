@@ -45,16 +45,13 @@ app.post('/api/opening/:type', async (req, res) => {
     return res.status(400).json({ error: `No opening message defined for type "${type}"` });
   }
 
-  console.log(`[Server] 🚀 Sending custom opener for type "${type}": ${opener}`);
   res.json({ answer: opener });
 });
 
 app.post('/api/analyze/debt', async (req, res) => {
-  const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
   const userId = uuidv4();
 
-  console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
   console.log(`[Server] 🧑‍💻 Generated user ID: ${userId}`);
 
@@ -65,7 +62,7 @@ app.post('/api/analyze/debt', async (req, res) => {
   const appId = process.env.DIFY_DEBT_APP_ID;
 
   if (!appId) {
-    return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
+    return res.status(500).json({ error: `Missing Dify App ID for debt.` });
   }
 
   const headers = {
@@ -102,7 +99,7 @@ app.post('/api/analyze/debt', async (req, res) => {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
 
-    console.error(`[Server] ❌ Error for Dify type "${type}":`, error.message);
+    console.error(`[Server] ❌ Error for Dify type debt:`, error.message);
     console.error('[Server] 🔥 Full error object:', error);
     console.error('[Server] 🔥 Error response data:', errorData);
 
@@ -114,7 +111,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.4.7',
+    version: '2.4.8',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
