@@ -27,8 +27,11 @@ if (!apiKey) {
 }
 
 app.post('/api/opening/:type', async (req, res) => {
+  console.log('[Server] 🏁 Starting request to get opening message...');
   const { type } = req.params;
+  console.log(`\n[Server] 📝 Received request for opening message of type: ${type}`);
   const appId = APP_ID_MAP[type];
+  console.log(`[Server] 📥 App ID for type "${type}": ${appId}`);
 
   if (!appId) {
     return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
@@ -38,7 +41,7 @@ app.post('/api/opening/:type', async (req, res) => {
     const headers = {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'x-app-id': appId
+      'x-api-app-id': appId
     };
 
     console.log(`[Server] 🎯 Requesting opener for type "${type}" with headers:`);
@@ -47,7 +50,7 @@ app.post('/api/opening/:type', async (req, res) => {
     const response = await axios.post(
       'https://api.dify.ai/v1/chat-messages',
       {
-        query: 'Hi! Let’s begin', // Or: '__opener__' if using custom opener logic
+        query: 'Hi! Let’s begin',
         inputs: {},
         response_mode: 'blocking',
         conversation_id: null,
@@ -88,7 +91,7 @@ app.post('/api/analyze/:type', async (req, res) => {
   const headers = {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
-    'x-app-id': appId
+    'x-api-app-id': appId
   };
 
   try {
@@ -107,16 +110,11 @@ app.post('/api/analyze/:type', async (req, res) => {
       { headers }
     );
 
-    console.log('[Server] 📥 Full response from Dify:');
-    console.dir(response.data, { depth: null });
-
     const answer = response.data.answer;
     const outputs = response.data.outputs || {};
-    const modelInfo = response.data.metadata || {};
 
     console.log('[Server] 💬 Answer:', answer);
     console.log('[Server] 📦 Outputs:', outputs);
-    console.log('[Server] 🧠 Model Metadata:', modelInfo);
 
     res.json({ answer, outputs });
   } catch (error) {
@@ -135,7 +133,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.2.2',
+    version: '2.2.3',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
