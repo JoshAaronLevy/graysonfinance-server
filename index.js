@@ -27,54 +27,30 @@ if (!apiKey) {
 }
 
 app.post('/api/opening/:type', async (req, res) => {
-  console.log('[Server] 🏁 Starting request to get opening message...');
-  const { type } = req.params;
-  console.log(`\n[Server] 📝 Received request for opening message of type: ${type}`);
-  const appId = APP_ID_MAP[type];
-  console.log(`[Server] 📥 App ID for type "${type}": ${appId}`);
+  const type = req.params?.type?.toLowerCase();
 
-  if (!appId) {
-    return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
+  const customOpeners = {
+    income: "Welcome to MoneyBuddy! Let's get started. What is your net monthly income after taxes?",
+    debt: 'What does your current debt situation look like? You can give a general response, like "$30,000", or a more detailed breakdown.',
+    expenses: 'Can you describe your typical monthly expenses? You can list categories or just give a ballpark figure.',
+    savings: 'Do you currently have any savings? If so, how much and what are they for (e.g., emergency fund, vacation, etc.)?',
+    chats: 'Welcome to MoneyBuddy! How can I assist you today? You can ask about anything related to your finances.'
+  };
+
+  const opener = customOpeners[type];
+
+  if (!opener) {
+    console.warn(`[Server] ⚠️ Unknown prompt type received: "${type}"`);
+    return res.status(400).json({ error: `No opening message defined for type "${type}"` });
   }
 
-  try {
-    const headers = {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'x-api-app-id': appId
-    };
-
-    console.log(`[Server] 🎯 Requesting opener for type "${type}" with headers:`);
-    console.log(headers);
-
-    const response = await axios.post(
-      'https://api.dify.ai/v1/chat-messages',
-      {
-        query: 'Hi! Let’s begin',
-        inputs: {},
-        response_mode: 'blocking',
-        conversation_id: null,
-        user: `starter-${Date.now()}`
-      },
-      { headers }
-    );
-
-    const answer = response.data.answer || 'Hi! Let’s get started.';
-    console.log(`[Server] 🎤 Opening message for "${type}": ${answer}`);
-    res.json({ answer });
-  } catch (error) {
-    const statusCode = error.response?.status || 500;
-    const errorData = error.response?.data || error.message;
-
-    console.error(`[Server] ❌ Failed to get opener for type "${type}":`, error.message);
-    console.error('[Server] 🔥 Error response data:', errorData);
-    res.status(statusCode).json({ error: errorData });
-  }
+  console.log(`[Server] 🚀 Sending custom opener for type "${type}": ${opener}`);
+  res.json({ answer: opener });
 });
 
 app.post('/api/analyze/:type', async (req, res) => {
-  const { type } = req.params;
-  const userQuery = req.body.query;
+  const type = req.params?.type?.toLowerCase();
+  const userQuery = (req.body.query || '').trim();
 
   console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
@@ -133,7 +109,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.2.3',
+    version: '2.3.4',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
