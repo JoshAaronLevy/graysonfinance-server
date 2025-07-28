@@ -10,15 +10,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const apiKey = process.env.DIFY_API_KEY;
-
 const APP_ID_MAP = {
+  income: process.env.DIFY_INCOME_APP_ID,
   debt: process.env.DIFY_DEBT_APP_ID,
-  // income: process.env.DIFY_INCOME_APP_ID,
-  // expenses: process.env.DIFY_EXPENSES_APP_ID,
-  // savings: process.env.DIFY_SAVINGS_APP_ID,
-  // chats: process.env.DIFY_CHATS_APP_ID
+  expenses: process.env.DIFY_EXPENSES_APP_ID,
+  savings: process.env.DIFY_SAVINGS_APP_ID,
+  chats: process.env.DIFY_CHATS_APP_ID
 };
+
+const apiKey = process.env.DIFY_API_KEY;
 
 if (!apiKey) {
   console.error('[Startup] ❌ DIFY_API_KEY is missing. Exiting...');
@@ -31,8 +31,8 @@ app.post('/api/opening/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
 
   const customOpeners = {
-    debt: `What does your current debt situation look like (excluding assets like a car or home)?\nYou can give a general response, like "$30,000", or a more detailed breakdown.`,
     income: `Welcome to MoneyBuddy! Let's get started.\nWhat is your net monthly income after taxes?`,
+    debt: `What does your current debt situation look like (excluding assets like a car or home)?\nYou can give a general response, like "$30,000", or a more detailed breakdown.`,
     expenses: 'Can you describe your typical monthly expenses? You can list categories or just give a ballpark figure.',
     savings: 'Do you currently have any savings? If so, how much and what are they for (e.g., emergency fund, vacation, etc.)?',
     chats: 'Welcome to MoneyBuddy! How can I assist you today? You can ask about anything related to your finances.'
@@ -45,13 +45,16 @@ app.post('/api/opening/:type', async (req, res) => {
     return res.status(400).json({ error: `No opening message defined for type "${type}"` });
   }
 
+  console.log(`[Server] 🚀 Sending custom opener for type "${type}": ${opener}`);
   res.json({ answer: opener });
 });
 
-app.post('/api/analyze/debt', async (req, res) => {
+app.post('/api/analyze/:type', async (req, res) => {
+  const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
-  const userId = uuidv4();
+  const userId = uuidv4(); // ✅ Generate a fresh user ID
 
+  console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
   console.log(`[Server] 🧑‍💻 Generated user ID: ${userId}`);
 
@@ -59,10 +62,9 @@ app.post('/api/analyze/debt', async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid input: query' });
   }
 
-  const appId = process.env.DIFY_DEBT_APP_ID;
-
+  const appId = APP_ID_MAP[type];
   if (!appId) {
-    return res.status(500).json({ error: `Missing Dify App ID for debt.` });
+    return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
   }
 
   const headers = {
@@ -99,7 +101,7 @@ app.post('/api/analyze/debt', async (req, res) => {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
 
-    console.error(`[Server] ❌ Error for Dify type debt:`, error.message);
+    console.error(`[Server] ❌ Error for Dify type "${type}":`, error.message);
     console.error('[Server] 🔥 Full error object:', error);
     console.error('[Server] 🔥 Error response data:', errorData);
 
@@ -111,7 +113,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.4.8',
+    version: '2.4.9',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
