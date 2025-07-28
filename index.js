@@ -11,11 +11,11 @@ app.use(cors());
 app.use(express.json());
 
 const APP_ID_MAP = {
-  income: process.env.DIFY_INCOME_APP_ID,
-  debt: process.env.DIFY_DEBT_APP_ID,
-  expenses: process.env.DIFY_EXPENSES_APP_ID,
-  savings: process.env.DIFY_SAVINGS_APP_ID,
-  chats: process.env.DIFY_CHATS_APP_ID
+  income: process.env.DIFY_MONEYBUDDY_APP_ID,
+  debt: process.env.DIFY_MONEYBUDDY_APP_ID,
+  expenses: process.env.DIFY_MONEYBUDDY_APP_ID,
+  savings: process.env.DIFY_MONEYBUDDY_APP_ID,
+  chats: process.env.DIFY_MONEYBUDDY_APP_ID
 };
 
 const apiKey = process.env.DIFY_API_KEY;
@@ -113,7 +113,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '2.4.9',
+    version: '3.0.0',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
