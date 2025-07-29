@@ -52,7 +52,7 @@ app.post('/api/opening/:type', async (req, res) => {
 app.post('/api/analyze/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
-  const userId = uuidv4(); // ✅ Generate a fresh user ID
+  const userId = uuidv4(); // Generate a fresh user ID
 
   console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
@@ -113,7 +113,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '3.0.0',
+    version: '3.1.0',
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
