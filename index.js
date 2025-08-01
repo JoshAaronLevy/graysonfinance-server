@@ -192,7 +192,7 @@ app.get('/api/status', optionalAuth, async (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '5.0.1',
+    version: '5.1.1',
     database: dbStatus,
     authenticated: !!req.user,
     user: req.user ? { id: req.user.id, email: req.user.email } : null,
