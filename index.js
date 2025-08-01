@@ -24,14 +24,13 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Better Auth routes
 app.use('/api/auth', (req, res, next) => {
   console.log(`[AUTH ROUTE]: ${req.method} ${req.originalUrl}`);
-  console.log('[AUTH PAYLOAD]: ', req.body);
-  next();
-});
+  console.log('[AUTH PAYLOAD]:', req.body);
 
-// Better Auth routes
-app.use('/api/auth', auth.handler);
+  return auth.handler(req, res, next);
+});
 
 console.log("BASE_URL is:", process.env.BASE_URL);
 
@@ -200,7 +199,7 @@ app.get('/api/status', optionalAuth, async (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '5.2.2',
+    version: '5.3.3',
     database: dbStatus,
     authenticated: !!req.user,
     user: req.user ? { id: req.user.id, email: req.user.email } : null,
