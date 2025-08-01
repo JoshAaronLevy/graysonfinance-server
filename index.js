@@ -4,7 +4,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { v4 as uuidv4 } from 'uuid';
-import { auth } from './auth.js';
+import authRouter from './auth.js';
 import { requireAuth, optionalAuth } from './middleware/auth.js';
 import { testConnection, sql } from './db/neon.js';
 
@@ -26,18 +26,8 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Better Auth routes
-app.use('/api/auth', (req, res, next) => {
-  console.log(`[AUTH ROUTE]: ${req.method} ${req.originalUrl}`);
-  console.log('[AUTH PAYLOAD]:', req.body);
-
-  // Patch only for relative URLs to avoid Invalid URL
-  if (req.url === '/sign-up' || req.url === '/sign-in') {
-    req.url = `/api/auth${req.url}`;
-  }
-
-  return auth.handler(req, res, next);
-});
+// Custom Auth routes
+app.use('/api/auth', authRouter);
 
 console.log("BASE_URL is:", process.env.BASE_URL);
 
@@ -80,19 +70,6 @@ app.post('/api/opening/:type', async (req, res) => {
   res.json({ answer: opener });
 });
 
-// Authentication routes
-app.get('/api/me', optionalAuth, (req, res) => {
-  if (!req.user) {
-    return res.json({ user: null });
-  }
-  res.json({
-    user: req.user,
-    session: {
-      id: req.session.id,
-      expiresAt: req.session.expiresAt
-    }
-  });
-});
 
 app.post('/api/analyze/:type', optionalAuth, async (req, res) => {
   const type = req.params?.type?.toLowerCase();
@@ -212,10 +189,10 @@ app.get('/api/status', optionalAuth, async (req, res) => {
     user: req.user ? { id: req.user.id, email: req.user.email } : null,
     supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`),
     authEndpoints: [
-      '/api/auth/sign-in',
-      '/api/auth/sign-up',
-      '/api/auth/sign-out',
-      '/api/me',
+      '/api/auth/login',
+      '/api/auth/signup',
+      '/api/auth/logout',
+      '/api/auth/me',
       '/api/user/profile',
       '/api/user/financial-data'
     ]

@@ -1,47 +1,81 @@
-import { auth } from "../auth.js";
+import jwt from 'jsonwebtoken';
+import { Pool } from 'pg';
+
+// Remove surrounding quotes from DATABASE_URL if present
+const dbUrl = process.env.DATABASE_URL?.replace(/^'|'$/g, '') || process.env.DATABASE_URL;
+const pool = new Pool({ connectionString: dbUrl });
 
 export const requireAuth = async (req, res, next) => {
-  try {
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
+  const token = req.cookies.session_token;
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
-    if (!session) {
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        message: 'Please log in to access this resource'
-      });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Verify session exists in database
+    const sessionResult = await pool.query(
+      "SELECT * FROM sessions WHERE session_token = $1 AND expires > NOW()",
+      [token]
+    );
+    
+    if (sessionResult.rows.length === 0) {
+      return res.status(401).json({ error: "Session expired" });
     }
 
-    req.user = session.user;
-    req.session = session;
+    // Get user data
+    const userResult = await pool.query(
+      "SELECT id, name, email FROM users WHERE id = $1",
+      [decoded.id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    req.user = userResult.rows[0];
     next();
   } catch (error) {
     console.error('[Auth Middleware] Error:', error);
-    return res.status(401).json({ 
-      error: 'Invalid session',
-      message: 'Your session is invalid or expired'
-    });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 };
 
 export const optionalAuth = async (req, res, next) => {
+  const token = req.cookies.session_token;
+  
+  if (!token) {
+    return next();
+  }
+
   try {
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
-
-    if (session) {
-      req.user = session.user;
-      req.session = session;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Verify session exists in database
+    const sessionResult = await pool.query(
+      "SELECT * FROM sessions WHERE session_token = $1 AND expires > NOW()",
+      [token]
+    );
+    
+    if (sessionResult.rows.length > 0) {
+      // Get user data
+      const userResult = await pool.query(
+        "SELECT id, name, email FROM users WHERE id = $1",
+        [decoded.id]
+      );
+      
+      if (userResult.rows.length > 0) {
+        req.user = userResult.rows[0];
+        req.session = { id: sessionResult.rows[0].id, expiresAt: sessionResult.rows[0].expires };
+      }
     }
-
-    next();
   } catch (error) {
     console.error('[Auth Middleware] Optional auth error:', error);
     // Continue without authentication for optional auth
-    next();
   }
+  
+  next();
 };
 
 export const requireRole = (roles) => {
