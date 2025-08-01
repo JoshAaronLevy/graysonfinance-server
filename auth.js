@@ -6,19 +6,20 @@ const prisma = new PrismaClient();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: "sqlite",
+    provider: "postgresql",
   }),
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
   },
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BASE_URL || "http://localhost:3000",
   trustedOrigins: [
+    'http://localhost:4200',
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:5173",
