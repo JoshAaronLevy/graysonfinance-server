@@ -8,6 +8,8 @@ import { auth } from './auth.js';
 import { requireAuth, optionalAuth } from './middleware/auth.js';
 import { testConnection, sql } from './db/neon.js';
 
+const latestVersion = '5.3.5';
+
 dotenv.config();
 
 const app = express();
@@ -204,7 +206,7 @@ app.get('/api/status', optionalAuth, async (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '5.3.4',
+    version: latestVersion,
     database: dbStatus,
     authenticated: !!req.user,
     user: req.user ? { id: req.user.id, email: req.user.email } : null,
@@ -230,5 +232,5 @@ testConnection().then((success) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`🚀 Dify proxy server running on http://localhost:${PORT}`)
+  console.log(`🚀 Dify proxy server running version ${latestVersion} on http://localhost:${PORT}`)
 );
