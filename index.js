@@ -7,10 +7,14 @@ import { v4 as uuidv4 } from 'uuid';
 import authRouter from './auth.js';
 import { requireAuth, optionalAuth } from './middleware/auth.js';
 import { testConnection, sql } from './db/neon.js';
+import { Pool } from 'pg';  // ✅ added
 
-const latestVersion = '5.5.6';
+const latestVersion = '5.5.7';
 
 dotenv.config();
+
+const dbUrl = process.env.DATABASE_URL?.replace(/^'|'$/g, '') || process.env.DATABASE_URL;
+const pool = new Pool({ connectionString: dbUrl }); // ✅ added
 
 const app = express();
 app.use(cors({
@@ -29,7 +33,19 @@ app.use(cookieParser());
 // Custom Auth routes
 app.use('/api/auth', authRouter);
 
-console.log("BASE_URL is:", process.env.BASE_URL);
+// ✅ Legacy /api/me route for backward compatibility
+app.get("/api/me", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email FROM users WHERE id = $1",
+      [req.user.id]
+    );
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error("Legacy /api/me error:", error);
+    res.status(500).json({ error: "Failed to get user data" });
+  }
+});
 
 const APP_ID_MAP = {
   income: process.env.DIFY_MONEYBUDDY_APP_ID,
