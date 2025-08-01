@@ -8,7 +8,7 @@ import { auth } from './auth.js';
 import { requireAuth, optionalAuth } from './middleware/auth.js';
 import { testConnection, sql } from './db/neon.js';
 
-const latestVersion = '5.3.5';
+const latestVersion = '5.5.6';
 
 dotenv.config();
 
