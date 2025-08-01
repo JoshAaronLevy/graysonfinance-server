@@ -29,6 +29,11 @@ app.use('/api/auth', (req, res, next) => {
   console.log(`[AUTH ROUTE]: ${req.method} ${req.originalUrl}`);
   console.log('[AUTH PAYLOAD]:', req.body);
 
+  // Patch only for relative URLs to avoid Invalid URL
+  if (req.url === '/sign-up' || req.url === '/sign-in') {
+    req.url = `/api/auth${req.url}`;
+  }
+
   return auth.handler(req, res, next);
 });
 
@@ -199,7 +204,7 @@ app.get('/api/status', optionalAuth, async (req, res) => {
   res.json({
     status: 'ok',
     message: 'MoneyBuddy Dify proxy is running',
-    version: '5.3.3',
+    version: '5.3.4',
     database: dbStatus,
     authenticated: !!req.user,
     user: req.user ? { id: req.user.id, email: req.user.email } : null,
