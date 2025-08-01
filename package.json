@@ -1,12 +1,25 @@
 {
   "name": "moneybuddy-server",
-  "version": "5.0.1",
+  "version": "5.1.1",
   "description": "",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:push": "prisma db push",
+    "db:pull": "prisma db pull",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "db:status": "prisma migrate status",
+    "db:reset": "prisma migrate reset --force && prisma generate",
+    "db:fresh": "prisma migrate reset --force && prisma migrate dev && prisma generate",
+    "prisma:format": "prisma format"
   },
   "keywords": [],
   "author": "",
