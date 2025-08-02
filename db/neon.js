@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -7,8 +8,14 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set');
 }
 
+// Remove surrounding quotes from DATABASE_URL if present
+const dbUrl = process.env.DATABASE_URL?.replace(/^'|'$/g, '') || process.env.DATABASE_URL;
+
 // Initialize Neon database connection
 export const sql = neon(process.env.DATABASE_URL);
+
+// Export shared pool instance for reuse across the application
+export const pool = new Pool({ connectionString: dbUrl });
 
 // Test database connection
 export async function testConnection() {

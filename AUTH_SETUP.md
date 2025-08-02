@@ -1,120 +1,183 @@
-# Better-Auth Setup for MoneyBuddy Server
+# Clerk Authentication Setup for MoneyBuddy Server
 
 ## Overview
-Better-auth has been successfully integrated into your MoneyBuddy server. This document outlines the authentication endpoints and how to test them.
+Clerk authentication has been successfully integrated into your MoneyBuddy server. This document outlines the authentication endpoints and setup process.
 
 ## Authentication Endpoints
 
-### Core Auth Endpoints (handled by better-auth)
-- `POST /api/auth/sign-up` - Register a new user
-- `POST /api/auth/sign-in` - Sign in an existing user
-- `POST /api/auth/sign-out` - Sign out the current user
-- `GET /api/auth/session` - Get current session info
+### Protected Routes (require Clerk authentication)
+- `GET /api/user/profile` - Get current user profile
+- `PUT /api/user/profile` - Update user profile
+- `GET /api/user/financial-data` - Get user's financial data
 
-### Custom Endpoints
-- `GET /api/me` - Get current user info (protected)
-- `GET /api/user/profile` - Get user profile (protected)
-- `PUT /api/user/profile` - Update user profile (protected)
-- `GET /api/user/financial-data` - Get user's financial data (protected)
-- `GET /api/status` - Server status (includes auth info)
+### Public Routes
+- `POST /api/analyze/:type` - Analyze financial data (public)
+- `GET /api/opening/:type` - Get opening messages (public)
+- `GET /api/status` - Server status (public)
 
-## Testing the Authentication
+### Webhook Endpoints
+- `POST /api/webhooks/clerk` - Clerk webhook for user lifecycle events
+
+## Environment Variables
+
+Required environment variables in your `.env` file:
+
+```env
+# Dify API Configuration
+DIFY_API_KEY=your_dify_api_key_here
+DIFY_MONEYBUDDY_APP_ID=your_dify_app_id_here
+
+# Server Configuration
+BASE_URL=https://moneybuddy-server.onrender.com
+FRONTEND_URL=https://moneybuddy-seven.vercel.app
+DATABASE_URL=your_neon_postgres_connection_string
+
+# Clerk Authentication
+CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
+CLERK_SECRET_KEY=sk_test_your_secret_key_here
+CLERK_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+```
+
+## Database Schema
+
+The users table has been updated for Clerk:
+
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  clerk_user_id VARCHAR(255) UNIQUE,
+  name VARCHAR(255),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  email_verified TIMESTAMP,
+  image TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## Database Management Scripts
+
+Use these npm scripts for database management:
+
+```bash
+# Run migrations
+npm run db:migrate
+
+# Seed database (optional)
+npm run db:seed
+
+# Reset database (drops and recreates tables)
+npm run db:reset
+```
+
+## Clerk Webhook Setup
+
+1. **In your Clerk Dashboard:**
+   - Go to Webhooks
+   - Add endpoint: `https://your-domain.com/api/webhooks/clerk`
+   - Select events: `user.created`, `user.updated`, `user.deleted`
+   - Copy the webhook secret to `CLERK_WEBHOOK_SECRET`
+
+2. **Webhook handles:**
+   - `user.created` - Automatically creates user record in database
+   - `user.updated` - Updates user record when profile changes
+   - `user.deleted` - Removes user record from database
+
+## Frontend Integration
+
+When integrating with a frontend using Clerk:
+
+1. **Install Clerk in your frontend:**
+```bash
+npm install @clerk/nextjs  # for Next.js
+# or
+npm install @clerk/react   # for React
+```
+
+2. **Configure Clerk provider:**
+```javascript
+import { ClerkProvider } from '@clerk/nextjs'
+
+export default function RootLayout({ children }) {
+  return (
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    >
+      {children}
+    </ClerkProvider>
+  )
+}
+```
+
+3. **Make authenticated requests:**
+```javascript
+import { useAuth } from '@clerk/nextjs'
+
+function MyComponent() {
+  const { getToken } = useAuth()
+  
+  const fetchUserProfile = async () => {
+    const token = await getToken()
+    const response = await fetch('/api/user/profile', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    return response.json()
+  }
+}
+```
+
+## Testing Authentication
 
 ### 1. Start the Server
 ```bash
 npm start
 ```
 
-### 2. Test Registration
+### 2. Test Public Endpoints
 ```bash
-curl -X POST http://localhost:3000/api/auth/sign-up \
+# Test status endpoint
+curl http://localhost:3000/api/status
+
+# Test analyze endpoint
+curl -X POST http://localhost:3000/api/analyze/income \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123",
-    "name": "Test User"
-  }'
+  -d '{"query": "I make $5000 per month"}'
 ```
 
-### 3. Test Sign In
-```bash
-curl -X POST http://localhost:3000/api/auth/sign-in \
-  -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
-```
+### 3. Test Protected Endpoints
+Protected endpoints require a valid Clerk session token. These should be tested through your frontend application after implementing Clerk authentication.
 
-### 4. Test Protected Route
-```bash
-curl -X GET http://localhost:3000/api/me \
-  -H "Content-Type: application/json" \
-  -b cookies.txt
-```
+## Migration from Previous Auth System
 
-### 5. Test Status Endpoint
-```bash
-curl -X GET http://localhost:3000/api/status \
-  -H "Content-Type: application/json" \
-  -b cookies.txt
-```
+The following changes were made during migration:
 
-## Frontend Integration
+1. **Removed:**
+   - JWT/bcrypt authentication
+   - Sessions table
+   - Password field from users table
+   - Old auth middleware
+   - Cookie-based authentication
 
-When integrating with a frontend, make sure to:
-
-1. **Enable credentials in requests:**
-```javascript
-fetch('/api/auth/sign-in', {
-  method: 'POST',
-  credentials: 'include', // Important for cookies
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    email: 'user@example.com',
-    password: 'password123'
-  })
-});
-```
-
-2. **Configure your frontend URL in CORS:**
-   - Add your frontend URL to the `trustedOrigins` array in `auth.js`
-   - Make sure your frontend URL is in the CORS origin array in `index.js`
-
-## Database
-
-The authentication system uses SQLite with Prisma. The database file (`dev.db`) is created automatically when you first run the server.
-
-## Environment Variables
-
-Make sure these are set in your `.env` file:
-- `BETTER_AUTH_SECRET` - ✅ Already configured
-- `DATABASE_URL` - ✅ Already configured
-
-Optional social login variables:
-- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
-
-## Modified Routes
-
-- `/api/analyze/:type` - Now uses optional authentication (works for both authenticated and anonymous users)
-- `/api/status` - Now shows authentication status
+2. **Added:**
+   - Clerk Express middleware
+   - Clerk webhook handler
+   - `clerk_user_id` field to users table
+   - `updated_at` field to users table
 
 ## Security Features
 
-- Session-based authentication
-- Secure cookie handling
-- CORS protection
-- Password hashing (handled by better-auth)
-- Session expiration (7 days)
+- Bearer token authentication via Clerk
+- Automatic user synchronization via webhooks
+- Session management handled by Clerk
+- No password storage (handled by Clerk)
+- Secure webhook verification
 
 ## Next Steps
 
-1. Test the authentication endpoints
-2. Integrate with your frontend
-3. Configure social login providers (optional)
-4. Add role-based access control if needed
-5. Implement password reset functionality
+1. Configure Clerk in your dashboard
+2. Set up webhooks
+3. Update your frontend to use Clerk
+4. Test the complete authentication flow
+5. Deploy and verify webhook endpoint is accessible

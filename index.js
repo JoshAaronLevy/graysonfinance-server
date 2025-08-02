@@ -2,19 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import cookieParser from 'cookie-parser';
-import { v4 as uuidv4 } from 'uuid';
-import authRouter from './auth.js';
-import { requireAuth, optionalAuth } from './middleware/auth.js';
-import { testConnection, sql } from './db/neon.js';
-import { Pool } from 'pg';  // ✅ added
+import { requireAuth } from '@clerk/express';
+import { testConnection, sql, pool } from './db/neon.js';
+import clerkWebhookRouter from './routes/webhooks/clerk.js';
 
-const latestVersion = '5.5.7';
+const latestVersion = '6.0.0';
 
 dotenv.config();
-
-const dbUrl = process.env.DATABASE_URL?.replace(/^'|'$/g, '') || process.env.DATABASE_URL;
-const pool = new Pool({ connectionString: dbUrl }); // ✅ added
 
 const app = express();
 app.use(cors({
@@ -27,26 +21,45 @@ app.use(cors({
     process.env.FRONTEND_URL
   ].filter(Boolean)
 }));
+
+// Raw body for Clerk webhook (must be before express.json())
+app.use('/api/webhooks', clerkWebhookRouter);
+
+// JSON parsing for everything else
 app.use(express.json());
-app.use(cookieParser());
 
-// Custom Auth routes
-app.use('/api/auth', authRouter);
+// Custom auth error handling middleware
+const handleAuthError = (req, res, next) => {
+  const originalSend = res.send;
+  const originalJson = res.json;
+  
+  res.send = function(data) {
+    // Check if this is an auth error (typically HTML content from Clerk)
+    if (res.statusCode === 401 || res.statusCode === 403) {
+      return res.status(res.statusCode).json({
+        error: res.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
+        message: 'Authentication required to access this resource'
+      });
+    }
+    return originalSend.call(this, data);
+  };
+  
+  res.json = function(data) {
+    // Ensure auth errors are properly formatted
+    if ((res.statusCode === 401 || res.statusCode === 403) && !data.error) {
+      return originalJson.call(this, {
+        error: res.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
+        message: 'Authentication required to access this resource'
+      });
+    }
+    return originalJson.call(this, data);
+  };
+  
+  next();
+};
 
-// ✅ Legacy /api/me route for backward compatibility
-app.get("/api/me", requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT id, name, email FROM users WHERE id = $1",
-      [req.user.id]
-    );
-    res.json({ user: result.rows[0] });
-  } catch (error) {
-    console.error("Legacy /api/me error:", error);
-    res.status(500).json({ error: "Failed to get user data" });
-  }
-});
-
+// Apply auth error handling to all routes
+app.use(handleAuthError);
 const APP_ID_MAP = {
   income: process.env.DIFY_MONEYBUDDY_APP_ID,
   debt: process.env.DIFY_MONEYBUDDY_APP_ID,
@@ -86,15 +99,15 @@ app.post('/api/opening/:type', async (req, res) => {
   res.json({ answer: opener });
 });
 
-
-app.post('/api/analyze/:type', optionalAuth, async (req, res) => {
+// Public analyze endpoint - no authentication required for basic functionality
+app.post('/api/analyze/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
-  const userId = req.user?.id || uuidv4(); // Use authenticated user ID or generate fresh one
+  const userId = req.body.userId || 'anonymous'; // Allow frontend to provide user ID
 
   console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
-  console.log(`[Server] 🧑‍💻 User ID: ${userId} ${req.user ? '(authenticated)' : '(anonymous)'}`);
+  console.log(`[Server] 🧑‍💻 User ID: ${userId}`);
 
   if (!userQuery || typeof userQuery !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid input: query' });
@@ -147,22 +160,45 @@ app.post('/api/analyze/:type', optionalAuth, async (req, res) => {
   }
 });
 
-// Protected user routes
-app.get('/api/user/profile', requireAuth, (req, res) => {
-  res.json({
-    user: req.user,
-    message: 'User profile retrieved successfully'
-  });
+// Protected routes using Clerk middleware
+app.get('/api/user/profile', requireAuth(), async (req, res) => {
+  try {
+    const clerkUserId = req.auth.userId;
+    const result = await pool.query(
+      "SELECT id, clerk_user_id, email, name, created_at FROM users WHERE clerk_user_id = $1",
+      [clerkUserId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      user: result.rows[0],
+      message: 'User profile retrieved successfully'
+    });
+  } catch (error) {
+    console.error('[Server] Profile retrieval error:', error);
+    res.status(500).json({ error: 'Failed to retrieve profile' });
+  }
 });
 
-app.put('/api/user/profile', requireAuth, async (req, res) => {
+app.put('/api/user/profile', requireAuth(), async (req, res) => {
   try {
+    const clerkUserId = req.auth.userId;
     const { name, email } = req.body;
     
-    // Here you would update the user in your database
-    // For now, we'll just return the updated user data
+    const result = await pool.query(
+      "UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE clerk_user_id = $3 RETURNING id, clerk_user_id, email, name, created_at, updated_at",
+      [name, email, clerkUserId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
     res.json({
-      user: { ...req.user, name, email },
+      user: result.rows[0],
       message: 'Profile updated successfully'
     });
   } catch (error) {
@@ -171,22 +207,29 @@ app.put('/api/user/profile', requireAuth, async (req, res) => {
   }
 });
 
-// Protected financial data routes (require authentication)
-app.get('/api/user/financial-data', requireAuth, (req, res) => {
-  res.json({
-    message: 'This would return user-specific financial data',
-    userId: req.user.id,
-    data: {
-      // This is where you'd fetch user's financial data from database
-      income: [],
-      expenses: [],
-      savings: [],
-      debt: []
-    }
-  });
+// Protected financial data routes
+app.get('/api/user/financial-data', requireAuth(), async (req, res) => {
+  try {
+    const clerkUserId = req.auth.userId;
+    
+    res.json({
+      message: 'This would return user-specific financial data',
+      userId: clerkUserId,
+      data: {
+        // This is where you'd fetch user's financial data from database
+        income: [],
+        expenses: [],
+        savings: [],
+        debt: []
+      }
+    });
+  } catch (error) {
+    console.error('[Server] Financial data error:', error);
+    res.status(500).json({ error: 'Failed to retrieve financial data' });
+  }
 });
 
-app.get('/api/status', optionalAuth, async (req, res) => {
+app.get('/api/status', async (req, res) => {
   let dbStatus = 'unknown';
   try {
     const dbResult = await sql`SELECT 1 as test`;
@@ -201,17 +244,8 @@ app.get('/api/status', optionalAuth, async (req, res) => {
     message: 'MoneyBuddy Dify proxy is running',
     version: latestVersion,
     database: dbStatus,
-    authenticated: !!req.user,
-    user: req.user ? { id: req.user.id, email: req.user.email } : null,
-    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`),
-    authEndpoints: [
-      '/api/auth/login',
-      '/api/auth/signup',
-      '/api/auth/logout',
-      '/api/auth/me',
-      '/api/user/profile',
-      '/api/user/financial-data'
-    ]
+    authentication: 'clerk',
+    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
   });
 });
 
