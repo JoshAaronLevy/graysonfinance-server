@@ -6,7 +6,7 @@ import { requireAuth } from '@clerk/express';
 import { testConnection, sql, pool } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
 
-const latestVersion = '6.1.0';
+const latestVersion = '6.1.1';
 
 dotenv.config();
 
@@ -256,5 +256,5 @@ testConnection().then((success) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`🚀 Dify proxy server running version ${latestVersion} on http://localhost:${PORT}`)
+  console.log(`🚀 Server running version ${latestVersion} on http://localhost:${PORT}`)
 );
