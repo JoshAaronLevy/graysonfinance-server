@@ -20,9 +20,7 @@ export const pool = new Pool({ connectionString: dbUrl });
 // Test database connection
 export async function testConnection() {
   try {
-    const result = await sql`SELECT version()`;
-    console.log('✅ Database connected successfully');
-    console.log('📊 PostgreSQL version:', result[0].version);
+    await sql`SELECT version()`;
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error);

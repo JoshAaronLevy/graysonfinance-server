@@ -54,31 +54,8 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
       const logEmail = process.env.NODE_ENV === 'production'
         ? (email ? email.replace(/(.{2}).*@/, '$1***@') : 'null')
         : email;
-      
+
       console.log(`[Clerk Webhook] Creating user: ${clerkUserId}, email: ${logEmail}, name: ${name}`);
-
-      try {
-        const result = await pool.query(
-          `INSERT INTO users (clerk_user_id, email, name, created_at, updated_at)
-           VALUES ($1, $2, $3, NOW(), NOW())
-           ON CONFLICT (clerk_user_id) DO NOTHING
-           RETURNING id, clerk_user_id, email, name`,
-          [clerkUserId, email, name]
-        );
-
-        if (result.rows.length > 0) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[Clerk Webhook] ✅ User created successfully:`, result.rows[0]);
-          } else {
-            console.log(`[Clerk Webhook] ✅ User created successfully: ${clerkUserId}`);
-          }
-        } else {
-          console.log(`[Clerk Webhook] ℹ️ User already exists: ${clerkUserId}`);
-        }
-      } catch (dbError) {
-        console.error('[Clerk Webhook] Database error:', dbError);
-        return res.status(500).json({ error: 'Database error' });
-      }
     } else if (evt.type === 'user.updated') {
       const { id: clerkUserId, email_addresses, first_name, last_name } = evt.data;
 
@@ -91,28 +68,6 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
         : email;
       
       console.log(`[Clerk Webhook] Updating user: ${clerkUserId}, email: ${logEmail}, name: ${name}`);
-
-      try {
-        const result = await pool.query(
-          `UPDATE users SET email = $1, name = $2, updated_at = NOW()
-           WHERE clerk_user_id = $3
-           RETURNING id, clerk_user_id, email, name`,
-          [email, name, clerkUserId]
-        );
-
-        if (result.rows.length > 0) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[Clerk Webhook] ✅ User updated successfully:`, result.rows[0]);
-          } else {
-            console.log(`[Clerk Webhook] ✅ User updated successfully: ${clerkUserId}`);
-          }
-        } else {
-          console.log(`[Clerk Webhook] ⚠️ User not found for update: ${clerkUserId}`);
-        }
-      } catch (dbError) {
-        console.error('[Clerk Webhook] Database error:', dbError);
-        return res.status(500).json({ error: 'Database error' });
-      }
     } else if (evt.type === 'user.deleted') {
       const { id: clerkUserId } = evt.data;
 

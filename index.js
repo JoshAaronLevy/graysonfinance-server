@@ -6,7 +6,7 @@ import { requireAuth } from '@clerk/express';
 import { testConnection, sql, pool } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
 
-const latestVersion = '6.0.0';
+const latestVersion = '6.1.0';
 
 dotenv.config();
 
@@ -73,8 +73,6 @@ const apiKey = process.env.DIFY_API_KEY;
 if (!apiKey) {
   console.error('[Startup] ❌ DIFY_API_KEY is missing. Exiting...');
   process.exit(1);
-} else {
-  console.log(`[Startup] ✅ DIFY_API_KEY loaded (starts with: ${apiKey.slice(0, 6)}...)`);
 }
 
 app.post('/api/opening/:type', async (req, res) => {
@@ -95,7 +93,6 @@ app.post('/api/opening/:type', async (req, res) => {
     return res.status(400).json({ error: `No opening message defined for type "${type}"` });
   }
 
-  console.log(`[Server] 🚀 Sending custom opener for type "${type}": ${opener}`);
   res.json({ answer: opener });
 });
 
@@ -103,11 +100,9 @@ app.post('/api/opening/:type', async (req, res) => {
 app.post('/api/analyze/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
-  const userId = req.body.userId || 'anonymous'; // Allow frontend to provide user ID
+  const userId = req.body.userId || 'anonymous';
 
-  console.log(`\n[Server] 📝 Received request for type: ${type}`);
   console.log('[Server] 📥 Raw request body:', req.body);
-  console.log(`[Server] 🧑‍💻 User ID: ${userId}`);
 
   if (!userQuery || typeof userQuery !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid input: query' });
@@ -125,7 +120,6 @@ app.post('/api/analyze/:type', async (req, res) => {
   };
 
   try {
-    console.log(`[Server] 📤 Forwarding query to Dify (App ID: ${appId})`);
     console.log('[Server] 🧾 Headers:', headers);
 
     const response = await axios.post(
@@ -142,17 +136,20 @@ app.post('/api/analyze/:type', async (req, res) => {
 
     const { answer, outputs = {}, conversation_id } = response.data;
 
-    console.log('[Server] 💬 Answer:', answer);
-    console.log('[Server] 📦 Outputs:', outputs);
-    console.log(`[Server] 🧑‍💻 Returned user ID: ${userId}`);
-    console.log(`[Server] 🧵 Returned conversation ID: ${conversation_id}`);
+    const structuredResponse = {
+      answer,
+      outputs,
+      userId,
+      conversation_id
+    };
+
+    console.log('[Server] 📦 Structured Response: ', structuredResponse);
 
     res.json({ answer, outputs });
   } catch (error) {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
 
-    console.error(`[Server] ❌ Error for Dify type "${type}":`, error.message);
     console.error('[Server] 🔥 Full error object:', error);
     console.error('[Server] 🔥 Error response data:', errorData);
 
