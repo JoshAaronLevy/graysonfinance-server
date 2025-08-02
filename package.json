@@ -1,6 +1,6 @@
 {
   "name": "moneybuddy-server",
-  "version": "6.1.1",
+  "version": "6.2.1",
   "description": "Node.js server for MoneyBuddy, a personal finance management tool.",
   "type": "module",
   "main": "index.js",
@@ -11,7 +11,11 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/reset.js",
+    "seed": "node prisma/seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "Josh Levy",
@@ -20,12 +24,17 @@
     "@clerk/clerk-sdk-node": "^5.1.6",
     "@clerk/express": "^1.7.15",
     "@neondatabase/serverless": "^1.0.1",
+    "@prisma/client": "^6.13.0",
     "axios": "^1.11.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "nodemon": "^3.1.10",
     "pg": "^8.16.3",
+    "prisma": "^6.13.0",
     "svix": "^1.70.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
   }
 }

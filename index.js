@@ -5,8 +5,11 @@ import dotenv from 'dotenv';
 import { requireAuth } from '@clerk/express';
 import { testConnection, sql, pool } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
+import financialRouter from './routes/financial.js';
+import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '6.1.1';
+const latestVersion = '6.2.1';
+const prisma = new PrismaClient();
 
 dotenv.config();
 
@@ -60,6 +63,9 @@ const handleAuthError = (req, res, next) => {
 
 // Apply auth error handling to all routes
 app.use(handleAuthError);
+
+// Financial routes
+app.use('/api/financial', financialRouter);
 const APP_ID_MAP = {
   income: process.env.DIFY_MONEYBUDDY_APP_ID,
   debt: process.env.DIFY_MONEYBUDDY_APP_ID,
@@ -157,21 +163,36 @@ app.post('/api/analyze/:type', async (req, res) => {
   }
 });
 
+// Helper function to get user by Clerk ID
+async function getUserByClerkId(clerkUserId) {
+  let user = await prisma.user.findUnique({
+    where: { authId: clerkUserId }
+  });
+  
+  if (!user) {
+    // Create user if doesn't exist
+    user = await prisma.user.create({
+      data: { authId: clerkUserId }
+    });
+  }
+  
+  return user;
+}
+
 // Protected routes using Clerk middleware
 app.get('/api/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
-    const result = await pool.query(
-      "SELECT id, clerk_user_id, email, name, created_at FROM users WHERE clerk_user_id = $1",
-      [clerkUserId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const user = await getUserByClerkId(clerkUserId);
 
     res.json({
-      user: result.rows[0],
+      user: {
+        id: user.id,
+        authId: user.authId,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      },
       message: 'User profile retrieved successfully'
     });
   } catch (error) {
@@ -183,19 +204,23 @@ app.get('/api/user/profile', requireAuth(), async (req, res) => {
 app.put('/api/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
-    const { name, email } = req.body;
+    const { email } = req.body;
     
-    const result = await pool.query(
-      "UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE clerk_user_id = $3 RETURNING id, clerk_user_id, email, name, created_at, updated_at",
-      [name, email, clerkUserId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const user = await prisma.user.update({
+      where: { authId: clerkUserId },
+      data: {
+        ...(email && { email })
+      }
+    });
 
     res.json({
-      user: result.rows[0],
+      user: {
+        id: user.id,
+        authId: user.authId,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      },
       message: 'Profile updated successfully'
     });
   } catch (error) {
@@ -204,20 +229,40 @@ app.put('/api/user/profile', requireAuth(), async (req, res) => {
   }
 });
 
-// Protected financial data routes
+// Protected financial data routes - redirects to comprehensive financial API
 app.get('/api/user/financial-data', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
+    const user = await getUserByClerkId(clerkUserId);
     
+    const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
+      prisma.incomeSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.debtSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.expenseSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.savingsSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } })
+    ]);
+    
+    // Calculate totals
+    const totalIncome = incomeSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalDebt = debtSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalExpenses = expenseSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalSavings = savingsSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+
     res.json({
-      message: 'This would return user-specific financial data',
+      message: 'User financial data retrieved successfully',
       userId: clerkUserId,
+      summary: {
+        totalIncome,
+        totalDebt,
+        totalExpenses,
+        totalSavings,
+        netCashFlow: totalIncome - totalExpenses
+      },
       data: {
-        // This is where you'd fetch user's financial data from database
-        income: [],
-        expenses: [],
-        savings: [],
-        debt: []
+        income: incomeSources,
+        debt: debtSources,
+        expenses: expenseSources,
+        savings: savingsSources
       }
     });
   } catch (error) {
