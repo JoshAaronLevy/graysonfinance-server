@@ -11,11 +11,11 @@ async function main() {
       authId: 'test_user_auth_id_123',
     },
     update: {
-      email: 'test@moneybuddy.com',
+      email: 'test@graysonfinance.com',
     },
     create: {
       authId: 'test_user_auth_id_123',
-      email: 'test@moneybuddy.com',
+      email: 'test@graysonfinance.com',
     },
   });
 

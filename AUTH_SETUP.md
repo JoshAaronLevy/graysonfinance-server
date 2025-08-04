@@ -25,11 +25,12 @@ Required environment variables in your `.env` file:
 ```env
 # Dify API Configuration
 DIFY_API_KEY=your_dify_api_key_here
-DIFY_MONEYBUDDY_APP_ID=your_dify_app_id_here
+DIFY_GRAYSON_FINANCE_APP_ID=your_dify_app_id_here
+DIFY_GRAYSON_FINANCE_PRO_APP_ID=your_dify_app_id_here
 
 # Server Configuration
 BASE_URL=https://moneybuddy-server.onrender.com
-FRONTEND_URL=https://moneybuddy-seven.vercel.app
+FRONTEND_URL=https://graysonfinance.vercel.app
 DATABASE_URL=your_neon_postgres_connection_string
 
 # Clerk Authentication

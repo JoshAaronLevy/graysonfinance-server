@@ -30,20 +30,44 @@ enum ChatType {
 
 // Models
 model User {
-  id        String   @id @default(uuid())
-  authId    String   @unique @map("auth_id")
-  email     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                    String        @id @default(uuid())
+  authId                String        @unique @map("auth_id")
+  email                 String?       @unique
+  name                  String?
+  currentSubscriptionId String?       @map("current_subscription_id")
+  modelPreference       String        @default("gemini-flash") @map("model_preference")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  incomeSources  IncomeSource[]
-  debtSources    DebtSource[]
-  expenseSources ExpenseSource[]
-  savingsSources SavingsSource[]
-  chats          Chat[]
+  incomeSources     IncomeSource[]
+  debtSources       DebtSource[]
+  expenseSources    ExpenseSource[]
+  savingsSources    SavingsSource[]
+  chats             Chat[]
+  subscriptions     Subscription[]
+  currentSubscription Subscription? @relation("UserCurrentSubscription", fields: [currentSubscriptionId], references: [id])
 
   @@map("users")
+}
+
+model Subscription {
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id")
+  tier                String    // 'free', 'pro', 'pro_plus'
+  status              String    // 'active', 'canceled', 'trial'
+  startDate           DateTime  @default(now()) @map("start_date")
+  endDate             DateTime? @map("end_date")
+  canceledReason      String?   @map("canceled_reason")
+  totalBillingCycles  Int       @default(0) @map("total_billing_cycles")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usersCurrent      User[] @relation("UserCurrentSubscription")
+
+  @@map("subscriptions")
 }
 
 model IncomeSource {

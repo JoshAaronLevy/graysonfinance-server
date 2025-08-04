@@ -67,11 +67,11 @@ app.use(handleAuthError);
 // Financial routes
 app.use('/api/financial', financialRouter);
 const APP_ID_MAP = {
-  income: process.env.DIFY_MONEYBUDDY_APP_ID,
-  debt: process.env.DIFY_MONEYBUDDY_APP_ID,
-  expenses: process.env.DIFY_MONEYBUDDY_APP_ID,
-  savings: process.env.DIFY_MONEYBUDDY_APP_ID,
-  chats: process.env.DIFY_MONEYBUDDY_APP_ID
+  income: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
+  debt: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
+  expenses: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
+  savings: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
+  chats: process.env.DIFY_GRAYSON_FINANCE_APP_ID
 };
 
 const apiKey = process.env.DIFY_API_KEY;
@@ -85,11 +85,11 @@ app.post('/api/opening/:type', async (req, res) => {
   const type = req.params?.type?.toLowerCase();
 
   const customOpeners = {
-    income: `Welcome to MoneyBuddy! Let's get started.\nWhat is your net monthly income after taxes?`,
+    income: `Welcome! My name is Grayson, your personal AI financial assistant. Let's get started.\nWhat is your net monthly income after taxes?`,
     debt: `What does your current debt situation look like (excluding assets like a car or home)?\nYou can give a general response, like "$30,000", or a more detailed breakdown.`,
     expenses: 'Can you describe your typical monthly expenses? You can list categories or just give a ballpark figure.',
     savings: 'Do you currently have any savings? If so, how much and what are they for (e.g., emergency fund, vacation, etc.)?',
-    chats: 'Welcome to MoneyBuddy! How can I assist you today? You can ask about anything related to your finances.'
+    chats: 'Welcome! How can I assist you today? You can ask about anything related to your finances.'
   };
 
   const opener = customOpeners[type];
@@ -283,7 +283,7 @@ app.get('/api/status', async (req, res) => {
 
   res.json({
     status: 'ok',
-    message: 'MoneyBuddy Dify proxy is running',
+    message: 'Grayson Finance Dify proxy is running',
     version: latestVersion,
     database: dbStatus,
     authentication: 'clerk',
