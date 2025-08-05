@@ -1,6 +1,6 @@
 {
   "name": "graysonfinance-server",
-  "version": "8.5.1",
+  "version": "1.11.1",
   "description": "Node.js server for Grayson Finance, a personal finance management tool.",
   "type": "module",
   "main": "index.js",

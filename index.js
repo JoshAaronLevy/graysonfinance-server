@@ -14,10 +14,39 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '8.5.1';
-const prisma = new PrismaClient();
+const latestVersion = '1.11.1';
+const prisma = new PrismaClient({
+  log: ['error', 'warn'],
+  errorFormat: 'pretty'
+});
 
 dotenv.config();
+
+process.on('uncaughtException', (error) => {
+  console.error('[Server] 💥 Uncaught Exception:', error);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Server] 💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('SIGTERM', async () => {
+  console.log('[Server] 🛑 SIGTERM received, shutting down gracefully');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('[Server] 🛑 SIGINT received, shutting down gracefully');
+  await prisma.$disconnect();
+  process.exit(0);
+});
 
 const app = express();
 app.use(cors({
@@ -31,19 +60,15 @@ app.use(cors({
   ].filter(Boolean)
 }));
 
-// Raw body for Clerk webhook (must be before express.json())
 app.use('/v1/webhooks', clerkWebhookRouter);
 
-// JSON parsing for everything else
 app.use(express.json());
 
-// Custom auth error handling middleware
 const handleAuthError = (req, res, next) => {
   const originalSend = res.send;
   const originalJson = res.json;
   
   res.send = function(data) {
-    // Check if this is an auth error (typically HTML content from Clerk)
     if (res.statusCode === 401 || res.statusCode === 403) {
       return res.status(res.statusCode).json({
         error: res.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
@@ -54,7 +79,6 @@ const handleAuthError = (req, res, next) => {
   };
   
   res.json = function(data) {
-    // Ensure auth errors are properly formatted
     if ((res.statusCode === 401 || res.statusCode === 403) && !data.error) {
       return originalJson.call(this, {
         error: res.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
@@ -112,13 +136,10 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    // Get or create user and check for existing conversation
     const user = await getUserByClerkId(req.auth().userId);
     
-    // Import services
     const { getConversationByType } = await import('./services/conversationService.js');
     
-    // Check if conversation already exists
     const existingConversation = await getConversationByType(user.id, type);
     
     res.json({
@@ -128,7 +149,16 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] Error in opening endpoint:', error);
-    res.json({ answer: opener });
+    
+    if (error.message.includes('Database connection lost') || error.code === 'P1017') {
+      console.warn('[Server] Database unavailable for conversation check, returning opener only');
+    }
+    
+    res.json({
+      answer: opener,
+      hasExistingConversation: false,
+      conversationId: null
+    });
   }
 });
 
@@ -180,7 +210,6 @@ app.post('/v1/conversations/:type', requireAuth(), async (req, res) => {
 
     const { answer, outputs = {}, conversation_id } = response.data;
 
-    // If we got a new conversation_id from Dify, update our conversation record
     if (conversation_id && isNewConversation) {
       await prisma.conversation.update({
         where: { id: conversation.id },
@@ -219,17 +248,27 @@ app.post('/v1/conversations/:type', requireAuth(), async (req, res) => {
 });
 
 async function getUserByClerkId(clerkUserId) {
-  let user = await prisma.user.findUnique({
-    where: { authId: clerkUserId }
-  });
-  
-  if (!user) {
-    user = await prisma.user.create({
-      data: { authId: clerkUserId }
+  try {
+    let user = await prisma.user.findUnique({
+      where: { authId: clerkUserId }
     });
+    
+    if (!user) {
+      user = await prisma.user.create({
+        data: { authId: clerkUserId }
+      });
+    }
+    
+    return user;
+  } catch (error) {
+    console.error('[Server] 💥 Database error in getUserByClerkId:', error);
+    
+    if (error.code === 'P1017' || error.message.includes('Server has closed the connection')) {
+      throw new Error('Database connection lost. Please check your database connection and try again.');
+    }
+    
+    throw error;
   }
-  
-  return user;
 }
 
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
@@ -249,7 +288,15 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] Profile retrieval error:', error);
-    res.status(500).json({ error: 'Failed to retrieve profile' });
+    
+    if (error.message.includes('Database connection lost')) {
+      res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: 'Database connection issue. Please try again in a moment.'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to retrieve profile' });
+    }
   }
 });
 
@@ -277,7 +324,15 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] Profile update error:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    
+    if (error.code === 'P1017' || error.message.includes('Server has closed the connection')) {
+      res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: 'Database connection issue. Please try again in a moment.'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
   }
 });
 
@@ -317,11 +372,18 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] Financial data error:', error);
-    res.status(500).json({ error: 'Failed to retrieve financial data' });
+    
+    if (error.message.includes('Database connection lost') || error.code === 'P1017') {
+      res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: 'Database connection issue. Please try again in a moment.'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to retrieve financial data' });
+    }
   }
 });
 
-// New /v1/user-data endpoint for front-end initialization
 app.get('/v1/user-data', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth().userId;
@@ -365,7 +427,15 @@ app.get('/v1/user-data', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] User data error:', error);
-    res.status(500).json({ error: 'Failed to retrieve user data' });
+    
+    if (error.message.includes('Database connection lost') || error.code === 'P1017') {
+      res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: 'Database connection issue. Please try again in a moment.'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to retrieve user data' });
+    }
   }
 });
 
@@ -391,12 +461,46 @@ app.get('/v1/status', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-testConnection().then((success) => {
-  if (!success) {
-    console.warn('⚠️ Server starting without database connection');
+async function startServer() {
+  try {
+    const dbConnected = await testConnection();
+    
+    if (!dbConnected) {
+      console.warn('[Server] ⚠️ Database connection failed - server will start but some features may not work');
+      console.warn('[Server] ⚠️ Please check your DATABASE_URL environment variable');
+    } else {
+      console.log('[Server] ✅ Database connection successful');
+    }
+    
+    try {
+      await prisma.$connect();
+      console.log('[Server] ✅ Prisma client connected');
+    } catch (error) {
+      console.error('[Server] ❌ Prisma connection failed:', error.message);
+      console.warn('[Server] ⚠️ Server will continue but database features may not work');
+    }
+    
+    const server = app.listen(PORT, () => {
+      console.log(`[Server] 🚀 ${process.env.NODE_ENV || 'development'} server running version ${latestVersion} on http://localhost:${PORT}`);
+    });
+    
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[Server] ❌ Port ${PORT} is already in use. Please use a different port or kill the process using this port.`);
+        process.exit(1);
+      } else {
+        console.error('[Server] ❌ Server error:', error);
+      }
+    });
+    
+    return server;
+  } catch (error) {
+    console.error('[Server] 💥 Failed to start server:', error);
+    process.exit(1);
   }
-});
+}
 
-app.listen(PORT, () =>
-  console.log(`🚀 Server running version ${latestVersion} on http://localhost:${PORT}`)
-);
+startServer().catch((error) => {
+  console.error('[Server] 💥 Server startup failed:', error);
+  process.exit(1);
+});
