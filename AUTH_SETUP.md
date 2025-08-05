@@ -6,17 +6,17 @@ Clerk authentication has been successfully integrated into your MoneyBuddy serve
 ## Authentication Endpoints
 
 ### Protected Routes (require Clerk authentication)
-- `GET /api/user/profile` - Get current user profile
-- `PUT /api/user/profile` - Update user profile
-- `GET /api/user/financial-data` - Get user's financial data
+- `GET /v1/user/profile` - Get current user profile
+- `PUT /v1/user/profile` - Update user profile
+- `GET /v1/user/financial-data` - Get user's financial data
 
 ### Public Routes
-- `POST /api/analyze/:type` - Analyze financial data (public)
-- `GET /api/opening/:type` - Get opening messages (public)
-- `GET /api/status` - Server status (public)
+- `POST /v1/analyze/:type` - Analyze financial data (public)
+- `GET /v1/opening/:type` - Get opening messages (public)
+- `GET /v1/status` - Server status (public)
 
 ### Webhook Endpoints
-- `POST /api/webhooks/clerk` - Clerk webhook for user lifecycle events
+- `POST /v1/webhooks/clerk` - Clerk webhook for user lifecycle events
 
 ## Environment Variables
 
@@ -75,7 +75,7 @@ npm run db:reset
 
 1. **In your Clerk Dashboard:**
    - Go to Webhooks
-   - Add endpoint: `https://your-domain.com/api/webhooks/clerk`
+   - Add endpoint: `https://your-domain.com/v1/webhooks/clerk`
    - Select events: `user.created`, `user.updated`, `user.deleted`
    - Copy the webhook secret to `CLERK_WEBHOOK_SECRET`
 
@@ -119,7 +119,7 @@ function MyComponent() {
   
   const fetchUserProfile = async () => {
     const token = await getToken()
-    const response = await fetch('/api/user/profile', {
+    const response = await fetch('/v1/user/profile', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -139,10 +139,10 @@ npm start
 ### 2. Test Public Endpoints
 ```bash
 # Test status endpoint
-curl http://localhost:3000/api/status
+curl http://localhost:3000/v1/status
 
 # Test analyze endpoint
-curl -X POST http://localhost:3000/api/analyze/income \
+curl -X POST http://localhost:3000/v1/analyze/income \
   -H "Content-Type: application/json" \
   -d '{"query": "I make $5000 per month"}'
 ```

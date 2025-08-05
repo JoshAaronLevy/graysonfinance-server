@@ -1,6 +1,6 @@
 {
   "name": "graysonfinance-server",
-  "version": "6.2.1",
+  "version": "8.0.0",
   "description": "Node.js server for Grayson Finance, a personal finance management tool.",
   "type": "module",
   "main": "index.js",
@@ -11,6 +11,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/reset.js",
+    "migrate:chats": "node scripts/migrateChatsToConversations.js",
     "seed": "node prisma/seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

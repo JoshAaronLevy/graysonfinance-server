@@ -5,10 +5,16 @@ import dotenv from 'dotenv';
 import { requireAuth } from '@clerk/express';
 import { testConnection, sql, pool } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
-import financialRouter from './routes/financial.js';
+import conversationRoutes from './routes/conversations.js';
+import messageRoutes from './routes/messages.js';
+import incomeRoutes from './routes/financial/income.js';
+import debtRoutes from './routes/financial/debt.js';
+import expensesRoutes from './routes/financial/expenses.js';
+import savingsRoutes from './routes/financial/savings.js';
+import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '6.2.1';
+const latestVersion = '8.0.0';
 const prisma = new PrismaClient();
 
 dotenv.config();
@@ -26,7 +32,7 @@ app.use(cors({
 }));
 
 // Raw body for Clerk webhook (must be before express.json())
-app.use('/api/webhooks', clerkWebhookRouter);
+app.use('/v1/webhooks', clerkWebhookRouter);
 
 // JSON parsing for everything else
 app.use(express.json());
@@ -64,8 +70,16 @@ const handleAuthError = (req, res, next) => {
 // Apply auth error handling to all routes
 app.use(handleAuthError);
 
-// Financial routes
-app.use('/api/financial', financialRouter);
+// New conversation and message routes
+app.use('/api/conversations', conversationRoutes);
+app.use('/api/messages', messageRoutes);
+
+// Modular financial routes
+app.use('/v1/financial/income', incomeRoutes);
+app.use('/v1/financial/debt', debtRoutes);
+app.use('/v1/financial/expenses', expensesRoutes);
+app.use('/v1/financial/savings', savingsRoutes);
+app.use('/v1/financial/all', comprehensiveRoutes);
 const APP_ID_MAP = {
   income: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
   debt: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
@@ -81,7 +95,7 @@ if (!apiKey) {
   process.exit(1);
 }
 
-app.post('/api/opening/:type', async (req, res) => {
+app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
   const type = req.params?.type?.toLowerCase();
 
   const customOpeners = {
@@ -99,14 +113,32 @@ app.post('/api/opening/:type', async (req, res) => {
     return res.status(400).json({ error: `No opening message defined for type "${type}"` });
   }
 
-  res.json({ answer: opener });
+  try {
+    // Get or create user and check for existing conversation
+    const user = await getUserByClerkId(req.auth.userId);
+    
+    // Import services
+    const { getConversationByType } = await import('./services/conversationService.js');
+    
+    // Check if conversation already exists
+    const existingConversation = await getConversationByType(user.id, type);
+    
+    res.json({
+      answer: opener,
+      hasExistingConversation: !!existingConversation,
+      conversationId: existingConversation?.id || null
+    });
+  } catch (error) {
+    console.error('[Server] Error in opening endpoint:', error);
+    // Fall back to just returning the opener message
+    res.json({ answer: opener });
+  }
 });
 
-// Public analyze endpoint - no authentication required for basic functionality
-app.post('/api/analyze/:type', async (req, res) => {
+// Protected analyze endpoint - requires authentication and saves chat history
+app.post('/v1/analyze/:type', requireAuth(), async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
-  const userId = req.body.userId || 'anonymous';
 
   console.log('[Server] 📥 Raw request body:', req.body);
 
@@ -119,13 +151,28 @@ app.post('/api/analyze/:type', async (req, res) => {
     return res.status(500).json({ error: `Missing Dify App ID for type "${type}"` });
   }
 
-  const headers = {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-    'x-api-app-id': appId
-  };
-
   try {
+    // Get or create user
+    const user = await getUserByClerkId(req.auth.userId);
+    
+    // Import services (we'll need to add these imports at the top)
+    const { findOrCreateConversation } = await import('./services/conversationService.js');
+    const { addMessagePair } = await import('./services/messageService.js');
+    
+    // Find or create conversation for this user and chat type
+    let conversation = await findOrCreateConversation(user.id, type);
+    let difyConversationId = conversation.conversationId;
+    
+    // If this is a new conversation, difyConversationId might be our generated ID
+    // We need to use null for the first Dify call, then update with the returned ID
+    const isNewConversation = !conversation.conversationId.includes('dify-');
+    
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'x-api-app-id': appId
+    };
+
     console.log('[Server] 🧾 Headers:', headers);
 
     const response = await axios.post(
@@ -134,24 +181,42 @@ app.post('/api/analyze/:type', async (req, res) => {
         query: userQuery,
         inputs: {},
         response_mode: 'blocking',
-        conversation_id: null,
-        user: userId
+        conversation_id: isNewConversation ? null : difyConversationId,
+        user: user.id
       },
       { headers }
     );
 
     const { answer, outputs = {}, conversation_id } = response.data;
 
+    // If we got a new conversation_id from Dify, update our conversation record
+    if (conversation_id && isNewConversation) {
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { conversationId: conversation_id }
+      });
+      difyConversationId = conversation_id;
+    }
+
+    // Save both user message and bot response
+    await addMessagePair(conversation.id, userQuery, answer);
+
     const structuredResponse = {
       answer,
       outputs,
-      userId,
-      conversation_id
+      userId: user.id,
+      conversation_id: difyConversationId,
+      conversationDbId: conversation.id
     };
 
     console.log('[Server] 📦 Structured Response: ', structuredResponse);
 
-    res.json({ answer, outputs });
+    res.json({
+      answer,
+      outputs,
+      conversation_id: difyConversationId,
+      conversationDbId: conversation.id
+    });
   } catch (error) {
     const statusCode = error.response?.status || 500;
     const errorData = error.response?.data || error.message;
@@ -180,7 +245,7 @@ async function getUserByClerkId(clerkUserId) {
 }
 
 // Protected routes using Clerk middleware
-app.get('/api/user/profile', requireAuth(), async (req, res) => {
+app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
     const user = await getUserByClerkId(clerkUserId);
@@ -201,7 +266,7 @@ app.get('/api/user/profile', requireAuth(), async (req, res) => {
   }
 });
 
-app.put('/api/user/profile', requireAuth(), async (req, res) => {
+app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
     const { email } = req.body;
@@ -230,7 +295,7 @@ app.put('/api/user/profile', requireAuth(), async (req, res) => {
 });
 
 // Protected financial data routes - redirects to comprehensive financial API
-app.get('/api/user/financial-data', requireAuth(), async (req, res) => {
+app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
     const user = await getUserByClerkId(clerkUserId);
@@ -271,7 +336,7 @@ app.get('/api/user/financial-data', requireAuth(), async (req, res) => {
   }
 });
 
-app.get('/api/status', async (req, res) => {
+app.get('/v1/status', async (req, res) => {
   let dbStatus = 'unknown';
   try {
     const dbResult = await sql`SELECT 1 as test`;
@@ -287,7 +352,7 @@ app.get('/api/status', async (req, res) => {
     version: latestVersion,
     database: dbStatus,
     authentication: 'clerk',
-    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/api/analyze/${t}`)
+    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/v1/analyze/${t}`)
   });
 });
 
