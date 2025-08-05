@@ -14,7 +14,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '8.0.0';
+const latestVersion = '8.5.1';
 const prisma = new PrismaClient();
 
 dotenv.config();
@@ -67,25 +67,23 @@ const handleAuthError = (req, res, next) => {
   next();
 };
 
-// Apply auth error handling to all routes
 app.use(handleAuthError);
 
-// New conversation and message routes
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 
-// Modular financial routes
 app.use('/v1/financial/income', incomeRoutes);
 app.use('/v1/financial/debt', debtRoutes);
 app.use('/v1/financial/expenses', expensesRoutes);
 app.use('/v1/financial/savings', savingsRoutes);
 app.use('/v1/financial/all', comprehensiveRoutes);
+
 const APP_ID_MAP = {
   income: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
   debt: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
   expenses: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
   savings: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
-  chats: process.env.DIFY_GRAYSON_FINANCE_APP_ID
+  chat: process.env.DIFY_GRAYSON_FINANCE_APP_ID
 };
 
 const apiKey = process.env.DIFY_API_KEY;
@@ -103,7 +101,7 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
     debt: `What does your current debt situation look like (excluding assets like a car or home)?\nYou can give a general response, like "$30,000", or a more detailed breakdown.`,
     expenses: 'Can you describe your typical monthly expenses? You can list categories or just give a ballpark figure.',
     savings: 'Do you currently have any savings? If so, how much and what are they for (e.g., emergency fund, vacation, etc.)?',
-    chats: 'Welcome! How can I assist you today? You can ask about anything related to your finances.'
+    chat: 'Welcome! How can I assist you today? You can ask about anything related to your finances.'
   };
 
   const opener = customOpeners[type];
@@ -115,7 +113,7 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
 
   try {
     // Get or create user and check for existing conversation
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     // Import services
     const { getConversationByType } = await import('./services/conversationService.js');
@@ -130,13 +128,11 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('[Server] Error in opening endpoint:', error);
-    // Fall back to just returning the opener message
     res.json({ answer: opener });
   }
 });
 
-// Protected analyze endpoint - requires authentication and saves chat history
-app.post('/v1/analyze/:type', requireAuth(), async (req, res) => {
+app.post('/v1/conversations/:type', requireAuth(), async (req, res) => {
   const type = req.params?.type?.toLowerCase();
   const userQuery = (req.body.query || '').trim();
 
@@ -152,19 +148,14 @@ app.post('/v1/analyze/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    // Get or create user
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
-    // Import services (we'll need to add these imports at the top)
     const { findOrCreateConversation } = await import('./services/conversationService.js');
     const { addMessagePair } = await import('./services/messageService.js');
     
-    // Find or create conversation for this user and chat type
     let conversation = await findOrCreateConversation(user.id, type);
     let difyConversationId = conversation.conversationId;
     
-    // If this is a new conversation, difyConversationId might be our generated ID
-    // We need to use null for the first Dify call, then update with the returned ID
     const isNewConversation = !conversation.conversationId.includes('dify-');
     
     const headers = {
@@ -198,7 +189,6 @@ app.post('/v1/analyze/:type', requireAuth(), async (req, res) => {
       difyConversationId = conversation_id;
     }
 
-    // Save both user message and bot response
     await addMessagePair(conversation.id, userQuery, answer);
 
     const structuredResponse = {
@@ -228,14 +218,12 @@ app.post('/v1/analyze/:type', requireAuth(), async (req, res) => {
   }
 });
 
-// Helper function to get user by Clerk ID
 async function getUserByClerkId(clerkUserId) {
   let user = await prisma.user.findUnique({
     where: { authId: clerkUserId }
   });
   
   if (!user) {
-    // Create user if doesn't exist
     user = await prisma.user.create({
       data: { authId: clerkUserId }
     });
@@ -244,10 +232,9 @@ async function getUserByClerkId(clerkUserId) {
   return user;
 }
 
-// Protected routes using Clerk middleware
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
 
     res.json({
@@ -268,7 +255,7 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
 
 app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     const { email } = req.body;
     
     const user = await prisma.user.update({
@@ -294,10 +281,9 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   }
 });
 
-// Protected financial data routes - redirects to comprehensive financial API
 app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
@@ -307,7 +293,6 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
       prisma.savingsSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } })
     ]);
     
-    // Calculate totals
     const totalIncome = incomeSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
     const totalDebt = debtSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
     const totalExpenses = expenseSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
@@ -336,6 +321,54 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
   }
 });
 
+// New /v1/user-data endpoint for front-end initialization
+app.get('/v1/user-data', requireAuth(), async (req, res) => {
+  try {
+    const clerkUserId = req.auth().userId;
+    const user = await getUserByClerkId(clerkUserId);
+    
+    const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
+      prisma.incomeSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.debtSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.expenseSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.savingsSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } })
+    ]);
+    
+    const totalIncome = incomeSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalDebt = debtSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalExpenses = expenseSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+    const totalSavings = savingsSources.reduce((sum, source) => sum + parseFloat(source.amount), 0);
+
+    res.json({
+      user: {
+        id: user.id,
+        authId: user.authId,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      },
+      summary: {
+        totalIncome,
+        totalDebt,
+        totalExpenses,
+        totalSavings,
+        netCashFlow: totalIncome - totalExpenses
+      },
+      data: {
+        income: incomeSources,
+        debt: debtSources,
+        expenses: expenseSources,
+        savings: savingsSources
+      },
+      message: 'User data retrieved successfully'
+    });
+  } catch (error) {
+    console.error('[Server] User data error:', error);
+    res.status(500).json({ error: 'Failed to retrieve user data' });
+  }
+});
+
 app.get('/v1/status', async (req, res) => {
   let dbStatus = 'unknown';
   try {
@@ -352,13 +385,12 @@ app.get('/v1/status', async (req, res) => {
     version: latestVersion,
     database: dbStatus,
     authentication: 'clerk',
-    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/v1/analyze/${t}`)
+    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/v1/conversations/${t}`)
   });
 });
 
 const PORT = process.env.PORT || 3000;
 
-// Test database connection on startup
 testConnection().then((success) => {
   if (!success) {
     console.warn('⚠️ Server starting without database connection');

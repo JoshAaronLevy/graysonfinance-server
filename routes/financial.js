@@ -5,14 +5,12 @@ import { PrismaClient } from '@prisma/client';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Helper function to get user by Clerk ID
 async function getUserByClerkId(clerkUserId) {
   let user = await prisma.user.findUnique({
     where: { authId: clerkUserId }
   });
   
   if (!user) {
-    // Create user if doesn't exist
     user = await prisma.user.create({
       data: { authId: clerkUserId }
     });
@@ -23,10 +21,9 @@ async function getUserByClerkId(clerkUserId) {
 
 // ============== INCOME SOURCES ==============
 
-// Get all income sources for user
 router.get('/income', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const incomeSources = await prisma.incomeSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -42,7 +39,7 @@ router.get('/income', requireAuth(), async (req, res) => {
 // Create new income source
 router.post('/income', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
@@ -69,7 +66,7 @@ router.post('/income', requireAuth(), async (req, res) => {
 // Update income source
 router.put('/income/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, notes } = req.body;
     
@@ -95,10 +92,9 @@ router.put('/income/:id', requireAuth(), async (req, res) => {
   }
 });
 
-// Delete income source
 router.delete('/income/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.incomeSource.deleteMany({
@@ -121,7 +117,7 @@ router.delete('/income/:id', requireAuth(), async (req, res) => {
 // Get all debt sources for user
 router.get('/debt', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const debtSources = await prisma.debtSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -137,7 +133,7 @@ router.get('/debt', requireAuth(), async (req, res) => {
 // Create new debt source
 router.post('/debt', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, interestRate, minPayment, notes } = req.body;
     
     if (!sourceName || !amount || !frequency || !interestRate) {
@@ -163,10 +159,9 @@ router.post('/debt', requireAuth(), async (req, res) => {
   }
 });
 
-// Update debt source
 router.put('/debt/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, interestRate, minPayment, notes } = req.body;
     
@@ -197,7 +192,7 @@ router.put('/debt/:id', requireAuth(), async (req, res) => {
 // Delete debt source
 router.delete('/debt/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.debtSource.deleteMany({
@@ -220,7 +215,7 @@ router.delete('/debt/:id', requireAuth(), async (req, res) => {
 // Get all expense sources for user
 router.get('/expenses', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const expenseSources = await prisma.expenseSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -236,7 +231,7 @@ router.get('/expenses', requireAuth(), async (req, res) => {
 // Create new expense source
 router.post('/expenses', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
@@ -263,7 +258,7 @@ router.post('/expenses', requireAuth(), async (req, res) => {
 // Update expense source
 router.put('/expenses/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, notes } = req.body;
     
@@ -292,7 +287,7 @@ router.put('/expenses/:id', requireAuth(), async (req, res) => {
 // Delete expense source
 router.delete('/expenses/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.expenseSource.deleteMany({
@@ -315,7 +310,7 @@ router.delete('/expenses/:id', requireAuth(), async (req, res) => {
 // Get all savings sources for user
 router.get('/savings', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const savingsSources = await prisma.savingsSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -331,7 +326,7 @@ router.get('/savings', requireAuth(), async (req, res) => {
 // Create new savings source
 router.post('/savings', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
@@ -358,7 +353,7 @@ router.post('/savings', requireAuth(), async (req, res) => {
 // Update savings source
 router.put('/savings/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, notes } = req.body;
     
@@ -387,7 +382,7 @@ router.put('/savings/:id', requireAuth(), async (req, res) => {
 // Delete savings source
 router.delete('/savings/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.savingsSource.deleteMany({
@@ -410,7 +405,7 @@ router.delete('/savings/:id', requireAuth(), async (req, res) => {
 // Get all financial data for user (for LLM context)
 router.get('/all', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources, chats] = await Promise.all([
       prisma.incomeSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
@@ -456,10 +451,9 @@ router.get('/all', requireAuth(), async (req, res) => {
 
 // ============== CHAT MESSAGES ==============
 
-// Get chat messages by type
-router.get('/chats/:chatType', requireAuth(), async (req, res) => {
+router.get('/chat/:chatType', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { chatType } = req.params;
     const { limit = 50 } = req.query;
     
@@ -480,9 +474,9 @@ router.get('/chats/:chatType', requireAuth(), async (req, res) => {
 });
 
 // Add new chat message
-router.post('/chats', requireAuth(), async (req, res) => {
+router.post('/chat', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { chatType, message, response, conversationId } = req.body;
     
     if (!chatType || !message || !response || !conversationId) {

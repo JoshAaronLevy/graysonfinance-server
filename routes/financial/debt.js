@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Get all debt sources for user
 router.get('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const debtSources = await prisma.debtSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -25,7 +25,7 @@ router.get('/', requireAuth(), async (req, res) => {
 // Create new debt source
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, interestRate, minPayment, notes } = req.body;
     
     if (!sourceName || !amount || !frequency || !interestRate) {
@@ -54,7 +54,7 @@ router.post('/', requireAuth(), async (req, res) => {
 // Update debt source
 router.put('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, interestRate, minPayment, notes } = req.body;
     
@@ -85,7 +85,7 @@ router.put('/:id', requireAuth(), async (req, res) => {
 // Delete debt source
 router.delete('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.debtSource.deleteMany({

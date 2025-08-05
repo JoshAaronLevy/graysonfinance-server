@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Get all income sources for user
 router.get('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const incomeSources = await prisma.incomeSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -25,7 +25,7 @@ router.get('/', requireAuth(), async (req, res) => {
 // Create new income source
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
@@ -52,7 +52,7 @@ router.post('/', requireAuth(), async (req, res) => {
 // Update income source
 router.put('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, notes } = req.body;
     
@@ -81,7 +81,7 @@ router.put('/:id', requireAuth(), async (req, res) => {
 // Delete income source
 router.delete('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.incomeSource.deleteMany({

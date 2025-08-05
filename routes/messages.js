@@ -17,7 +17,7 @@ const router = express.Router();
  */
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId, sender, content } = req.body;
     
     if (!conversationId || !sender || !content) {
@@ -61,7 +61,7 @@ router.post('/', requireAuth(), async (req, res) => {
  */
 router.post('/pair', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId, userMessage, botResponse } = req.body;
     
     if (!conversationId || !userMessage || !botResponse) {
@@ -98,7 +98,7 @@ router.post('/pair', requireAuth(), async (req, res) => {
  */
 router.delete('/:messageId', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { messageId } = req.params;
     
     const deleted = await deleteMessage(messageId, user.id);
@@ -127,7 +127,7 @@ router.delete('/:messageId', requireAuth(), async (req, res) => {
  */
 router.get('/count/:conversationId', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
     
     // Verify the conversation belongs to the user

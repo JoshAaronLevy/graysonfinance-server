@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Get all savings sources for user
 router.get('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const savingsSources = await prisma.savingsSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
@@ -25,7 +25,7 @@ router.get('/', requireAuth(), async (req, res) => {
 // Create new savings source
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
@@ -52,7 +52,7 @@ router.post('/', requireAuth(), async (req, res) => {
 // Update savings source
 router.put('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     const { sourceName, amount, frequency, notes } = req.body;
     
@@ -81,7 +81,7 @@ router.put('/:id', requireAuth(), async (req, res) => {
 // Delete savings source
 router.delete('/:id', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
     
     const deleted = await prisma.savingsSource.deleteMany({

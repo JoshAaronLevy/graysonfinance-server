@@ -17,7 +17,7 @@ const router = express.Router();
  */
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { chatType, difyConversationId } = req.body;
     
     if (!chatType) {
@@ -53,7 +53,7 @@ router.post('/', requireAuth(), async (req, res) => {
  */
 router.get('/:chatType', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { chatType } = req.params;
     
     const validChatTypes = ['income', 'debt', 'expenses', 'savings', 'open_chat'];
@@ -85,7 +85,7 @@ router.get('/:chatType', requireAuth(), async (req, res) => {
  */
 router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
     const { limit = 50, offset = 0, orderBy = 'asc' } = req.query;
     
@@ -136,7 +136,7 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
  */
 router.get('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     const conversations = await getUserConversations(user.id);
     

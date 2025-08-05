@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Get all financial data for user (for LLM context)
 router.get('/', requireAuth(), async (req, res) => {
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
       prisma.incomeSource.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),

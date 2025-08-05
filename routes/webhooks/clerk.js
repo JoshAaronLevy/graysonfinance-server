@@ -56,6 +56,31 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
         : email;
 
       console.log(`[Clerk Webhook] Creating user: ${clerkUserId}, email: ${logEmail}, name: ${name}`);
+
+      try {
+        // Use Prisma to create user in database
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const user = await prisma.user.upsert({
+          where: { authId: clerkUserId },
+          update: {
+            email: email,
+            name: name
+          },
+          create: {
+            authId: clerkUserId,
+            email: email,
+            name: name
+          }
+        });
+
+        console.log(`[Clerk Webhook] ✅ User created/updated in database: ${user.id}`);
+        await prisma.$disconnect();
+      } catch (dbError) {
+        console.error('[Clerk Webhook] Database error creating user:', dbError);
+        return res.status(500).json({ error: 'Database error creating user' });
+      }
     } else if (evt.type === 'user.updated') {
       const { id: clerkUserId, email_addresses, first_name, last_name } = evt.data;
 
@@ -68,29 +93,54 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
         : email;
       
       console.log(`[Clerk Webhook] Updating user: ${clerkUserId}, email: ${logEmail}, name: ${name}`);
+
+      try {
+        // Use Prisma to update user in database
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const user = await prisma.user.upsert({
+          where: { authId: clerkUserId },
+          update: {
+            email: email,
+            name: name
+          },
+          create: {
+            authId: clerkUserId,
+            email: email,
+            name: name
+          }
+        });
+
+        console.log(`[Clerk Webhook] ✅ User updated in database: ${user.id}`);
+        await prisma.$disconnect();
+      } catch (dbError) {
+        console.error('[Clerk Webhook] Database error updating user:', dbError);
+        return res.status(500).json({ error: 'Database error updating user' });
+      }
     } else if (evt.type === 'user.deleted') {
       const { id: clerkUserId } = evt.data;
 
       console.log(`[Clerk Webhook] Deleting user: ${clerkUserId}`);
 
       try {
-        const result = await pool.query(
-          `DELETE FROM users WHERE clerk_user_id = $1 RETURNING id, clerk_user_id`,
-          [clerkUserId]
-        );
+        // Use Prisma to delete user from database
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
 
-        if (result.rows.length > 0) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[Clerk Webhook] ✅ User deleted successfully:`, result.rows[0]);
-          } else {
-            console.log(`[Clerk Webhook] ✅ User deleted successfully: ${clerkUserId}`);
-          }
-        } else {
-          console.log(`[Clerk Webhook] ⚠️ User not found for deletion: ${clerkUserId}`);
-        }
+        const deletedUser = await prisma.user.delete({
+          where: { authId: clerkUserId }
+        });
+
+        console.log(`[Clerk Webhook] ✅ User deleted successfully: ${deletedUser.id}`);
+        await prisma.$disconnect();
       } catch (dbError) {
-        console.error('[Clerk Webhook] Database error:', dbError);
-        return res.status(500).json({ error: 'Database error' });
+        if (dbError.code === 'P2025') {
+          console.log(`[Clerk Webhook] ⚠️ User not found for deletion: ${clerkUserId}`);
+        } else {
+          console.error('[Clerk Webhook] Database error:', dbError);
+          return res.status(500).json({ error: 'Database error' });
+        }
       }
     }
 
