@@ -15,7 +15,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.15.1';
+const latestVersion = '1.17.2';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
