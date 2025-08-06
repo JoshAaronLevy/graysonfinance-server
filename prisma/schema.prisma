@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,59 +7,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enums
-enum Frequency {
-  MONTHLY
-  ANNUAL
-  WEEKLY
-}
-
-enum ChatType {
-  INCOME
-  DEBT
-  EXPENSES
-  SAVINGS
-  OPEN_CHAT
-}
-
-// Models
 model User {
-  id                    String        @id @default(uuid())
-  authId                String        @unique @map("auth_id")
-  email                 String?       @unique
-  name                  String?
-  currentSubscriptionId String?       @map("current_subscription_id")
-  modelPreference       String        @default("gemini-flash") @map("model_preference")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  incomeSources     IncomeSource[]
-  debtSources       DebtSource[]
-  expenseSources    ExpenseSource[]
-  savingsSources    SavingsSource[]
-  conversations     Conversation[]
-  subscriptions     Subscription[]
-  currentSubscription Subscription? @relation("UserCurrentSubscription", fields: [currentSubscriptionId], references: [id])
+  id                    String          @id @default(uuid())
+  authId                String          @unique @map("auth_id")
+  email                 String?         @unique
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  currentSubscriptionId String?         @map("current_subscription_id")
+  firstName             String?         @map("first_name")
+  modelPreference       String          @default("gemini-flash") @map("model_preference")
+  conversations         Conversation[]
+  debtSources           DebtSource[]
+  expenseSources        ExpenseSource[]
+  incomeSources         IncomeSource[]
+  savingsSources        SavingsSource[]
+  subscriptions         Subscription[]
+  currentSubscription   Subscription?   @relation("UserCurrentSubscription", fields: [currentSubscriptionId], references: [id])
 
   @@map("users")
 }
 
 model Subscription {
-  id                  String    @id @default(uuid())
-  userId              String    @map("user_id")
-  tier                String    // 'free', 'pro', 'pro_plus'
-  status              String    // 'active', 'canceled', 'trial'
-  startDate           DateTime  @default(now()) @map("start_date")
-  endDate             DateTime? @map("end_date")
-  canceledReason      String?   @map("canceled_reason")
-  totalBillingCycles  Int       @default(0) @map("total_billing_cycles")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  usersCurrent      User[] @relation("UserCurrentSubscription")
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  tier               String
+  status             String
+  startDate          DateTime  @default(now()) @map("start_date")
+  endDate            DateTime? @map("end_date")
+  canceledReason     String?   @map("canceled_reason")
+  totalBillingCycles Int       @default(0) @map("total_billing_cycles")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usersCurrent       User[]    @relation("UserCurrentSubscription")
 
   @@map("subscriptions")
 }
@@ -79,9 +53,7 @@ model IncomeSource {
   notes      String?
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("income_sources")
 }
@@ -97,9 +69,7 @@ model DebtSource {
   notes        String?
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("debt_sources")
 }
@@ -113,9 +83,7 @@ model ExpenseSource {
   notes      String?
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("expense_sources")
 }
@@ -129,39 +97,47 @@ model SavingsSource {
   notes      String?
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("savings_sources")
 }
 
 model Conversation {
-  id             String      @id @default(uuid())
-  userId         String      @map("user_id")
-  chatType       ChatType    @map("chat_type")
-  conversationId String      @unique @map("conversation_id")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-
-  // Relations
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  chatType       ChatType  @map("chat_type")
+  conversationId String    @unique @map("conversation_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       Message[]
 
   @@map("conversations")
 }
 
 model Message {
-  id              String       @id @default(uuid())
-  conversationId  String       @map("conversation_id")
-  sender          MessageSender
-  content         String
-  createdAt       DateTime     @default(now()) @map("created_at")
-
-  // Relations
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  conversationId String        @map("conversation_id")
+  sender         MessageSender
+  content        String
+  createdAt      DateTime      @default(now()) @map("created_at")
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+enum Frequency {
+  MONTHLY
+  ANNUAL
+  WEEKLY
+}
+
+enum ChatType {
+  INCOME
+  DEBT
+  EXPENSES
+  SAVINGS
+  OPEN_CHAT
 }
 
 enum MessageSender {

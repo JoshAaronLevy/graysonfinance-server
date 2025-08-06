@@ -29,7 +29,7 @@ const pool = new Pool({ connectionString: dbUrl });
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         clerk_user_id VARCHAR(255) UNIQUE,
-        name VARCHAR(255),
+        first_name VARCHAR(255),
         email VARCHAR(255) UNIQUE NOT NULL,
         email_verified TIMESTAMP,
         image TEXT,

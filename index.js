@@ -3,6 +3,7 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { requireAuth } from '@clerk/express';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 import { testConnection, sql, pool } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
 import conversationRoutes from './routes/conversations.js';
@@ -14,7 +15,8 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.11.1';
+const latestVersion = '1.15.1';
+
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
   errorFormat: 'pretty'
@@ -254,8 +256,47 @@ async function getUserByClerkId(clerkUserId) {
     });
     
     if (!user) {
+      console.log(`[Server] 👤 Creating new user for Clerk ID: ${clerkUserId}`);
+      
+      // Fetch full user data from Clerk before creating user
+      let clerkUser = null;
+      let email = null;
+      let firstName = null;
+      
+      try {
+        clerkUser = await clerkClient.users.getUser(clerkUserId);
+        email = clerkUser.emailAddresses?.[0]?.emailAddress || null;
+        firstName = clerkUser.firstName || null;
+        
+        // Production-safe logging - avoid logging full email addresses
+        const logEmail = process.env.NODE_ENV === 'production'
+          ? (email ? email.replace(/(.{2}).*@/, '$1***@') : 'null')
+          : email;
+          
+        console.log(`[Server] 📥 Fetched Clerk user data:`, {
+          clerkUserId,
+          email: logEmail,
+          firstName,
+          emailAddressesLength: clerkUser.emailAddresses?.length || 0
+        });
+      } catch (clerkError) {
+        console.warn(`[Server] ⚠️ Failed to fetch Clerk user data for ${clerkUserId}:`, clerkError.message);
+        console.warn('[Server] ⚠️ Creating user with authId only - webhook will update later');
+      }
+      
       user = await prisma.user.create({
-        data: { authId: clerkUserId }
+        data: {
+          authId: clerkUserId,
+          email: email,
+          firstName: firstName
+        }
+      });
+      
+      console.log(`[Server] ✅ User created with data:`, {
+        databaseId: user.id,
+        authId: user.authId,
+        email: user.email ? (process.env.NODE_ENV === 'production' ? user.email.replace(/(.{2}).*@/, '$1***@') : user.email) : 'null',
+        firstName: user.firstName
       });
     }
     
@@ -274,13 +315,16 @@ async function getUserByClerkId(clerkUserId) {
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth().userId;
+    console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
     const user = await getUserByClerkId(clerkUserId);
+    console.log('[Server] 📥 User found: ', user);
 
     res.json({
       user: {
         id: user.id,
         authId: user.authId,
         email: user.email,
+        firstName: user.firstName,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
@@ -302,21 +346,27 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
 
 app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
+    console.log('[Server] 📥 Update user/profile req: ', req.body);
     const clerkUserId = req.auth().userId;
-    const { email } = req.body;
+    console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
+    const { email, firstName } = req.body;
     
     const user = await prisma.user.update({
       where: { authId: clerkUserId },
       data: {
-        ...(email && { email })
+        ...(email && { email }),
+        ...(firstName && { firstName })
       }
     });
+
+    console.log('[Server] 📥 User updated: ', user);
 
     res.json({
       user: {
         id: user.id,
         authId: user.authId,
         email: user.email,
+        firstName: user.firstName,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
@@ -406,7 +456,7 @@ app.get('/v1/user-data', requireAuth(), async (req, res) => {
         id: user.id,
         authId: user.authId,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
@@ -455,7 +505,29 @@ app.get('/v1/status', async (req, res) => {
     version: latestVersion,
     database: dbStatus,
     authentication: 'clerk',
-    supportedEndpoints: Object.keys(APP_ID_MAP).map((t) => `/v1/conversations/${t}`)
+    supportedEndpoints: [
+      // Conversation endpoints
+      ...Object.keys(APP_ID_MAP).map((t) => `/v1/conversations/${t}`),
+      // Opening endpoints
+      ...Object.keys(APP_ID_MAP).map((t) => `/v1/opening/${t}`),
+      // User endpoints
+      '/v1/user/profile',
+      '/v1/user/financial-data',
+      '/v1/user-data',
+      // Financial endpoints
+      '/v1/financial/income',
+      '/v1/financial/debt',
+      '/v1/financial/expenses',
+      '/v1/financial/savings',
+      '/v1/financial/all',
+      // Message & Conversation API endpoints
+      '/api/conversations',
+      '/api/messages',
+      // Status endpoint
+      '/v1/status',
+      // Webhook endpoints
+      '/v1/webhooks'
+    ]
   });
 });
 

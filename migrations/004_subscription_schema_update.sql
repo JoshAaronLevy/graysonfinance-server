@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "public"."subscriptions" (
 );
 
 -- Step 2: Add new columns to users table
-ALTER TABLE "public"."users" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "public"."users" ADD COLUMN IF NOT EXISTS "first_name" TEXT;
 ALTER TABLE "public"."users" ADD COLUMN IF NOT EXISTS "current_subscription_id" TEXT;
 ALTER TABLE "public"."users" ADD COLUMN IF NOT EXISTS "model_preference" TEXT DEFAULT 'gemini-flash';
 
