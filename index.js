@@ -4,7 +4,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { requireAuth } from '@clerk/express';
 import { clerkClient } from '@clerk/clerk-sdk-node';
-import { testConnection, sql, pool } from './db/neon.js';
+import { testConnection, sql } from './db/neon.js';
 import clerkWebhookRouter from './routes/webhooks/clerk.js';
 import conversationRoutes from './routes/conversations.js';
 import messageRoutes from './routes/messages.js';
@@ -15,7 +15,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.19.2';
+const latestVersion = '1.22.2';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -138,7 +138,7 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    const user = await getUserByClerkId(req.auth().userId);
+    const user = await getUserByClerkId(req.auth.userId);
     
     const { getConversationByType } = await import('./services/conversationService.js');
     
@@ -180,7 +180,7 @@ app.post('/v1/conversations/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    const user = await getUserByClerkId(req.auth().userId);
+    const user = await getUserByClerkId(req.auth.userId);
     
     const { findOrCreateConversation } = await import('./services/conversationService.js');
     const { addMessagePair } = await import('./services/messageService.js');
@@ -312,9 +312,13 @@ async function getUserByClerkId(clerkUserId) {
   }
 }
 
+app.get('/v1/user/me', requireAuth(), async (req, res) => {
+  res.json({ auth: req.auth });
+});
+
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth().userId;
+    const clerkUserId = req.auth.userId;
     console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const user = await getUserByClerkId(clerkUserId);
@@ -353,7 +357,7 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     console.log('[Server] 📥 Update user/profile req: ', req.body);
 
-    const clerkUserId = req.auth().userId;
+    const clerkUserId = req.auth.userId;
     console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const { email, firstName } = req.body;
@@ -399,7 +403,7 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
 
 app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth().userId;
+    const clerkUserId = req.auth.userId;
     const user = await getUserByClerkId(clerkUserId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
@@ -447,7 +451,7 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
 
 app.get('/v1/user-data', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth().userId;
+    const clerkUserId = req.auth.userId;
     const user = await getUserByClerkId(clerkUserId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([

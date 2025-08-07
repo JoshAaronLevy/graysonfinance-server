@@ -65,13 +65,11 @@ router.get('/:chatType', requireAuth(), async (req, res) => {
 
     const conversation = await getConversationByType(user.id, chatType);
     
-    if (!conversation) {
-      return res.status(404).json({ error: 'Conversation not found' });
-    }
-    
-    res.json({ 
-      success: true, 
-      data: conversation 
+    // Return 200 OK with null data if no conversation exists yet
+    // This prevents 404 errors for users who haven't used this feature before
+    res.json({
+      success: true,
+      data: conversation // Will be null if not found, or the conversation object if found
     });
   } catch (error) {
     console.error('Error fetching conversation:', error);

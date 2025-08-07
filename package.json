@@ -1,6 +1,6 @@
 {
   "name": "graysonfinance-server",
-  "version": "1.19.2",
+  "version": "1.22.2",
   "description": "Node.js server for Grayson Finance, a personal finance management tool.",
   "type": "module",
   "main": "index.js",
@@ -23,7 +23,7 @@
   "license": "ISC",
   "dependencies": {
     "@clerk/clerk-sdk-node": "^5.1.6",
-    "@clerk/express": "^1.7.15",
+    "@clerk/express": "^1.7.16",
     "@neondatabase/serverless": "^1.0.1",
     "@prisma/client": "^6.13.0",
     "axios": "^1.11.0",
