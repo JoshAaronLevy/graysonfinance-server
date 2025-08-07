@@ -15,7 +15,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.17.2';
+const latestVersion = '1.19.2';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -316,30 +316,35 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth().userId;
     console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
+
     const user = await getUserByClerkId(clerkUserId);
     console.log('[Server] 📥 User found: ', user);
 
-    res.json({
+    res.status(200).json({
       user: {
         id: user.id,
-        authId: user.authId,
+        clerkUserId: user.authId,
         email: user.email,
         firstName: user.firstName,
+        modelPreference: user.modelPreference,
+        currentSubscriptionId: user.currentSubscriptionId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
       message: 'User profile retrieved successfully'
     });
   } catch (error) {
-    console.error('[Server] Profile retrieval error:', error);
-    
+    console.error('[Server] ❌ Profile retrieval error:', error);
+
     if (error.message.includes('Database connection lost')) {
       res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
     } else {
-      res.status(500).json({ error: 'Failed to retrieve profile' });
+      res.status(500).json({
+        error: 'Failed to retrieve user profile'
+      });
     }
   }
 });
@@ -347,10 +352,12 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
 app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     console.log('[Server] 📥 Update user/profile req: ', req.body);
+
     const clerkUserId = req.auth().userId;
     console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
+
     const { email, firstName } = req.body;
-    
+
     const user = await prisma.user.update({
       where: { authId: clerkUserId },
       data: {
@@ -361,27 +368,31 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
 
     console.log('[Server] 📥 User updated: ', user);
 
-    res.json({
+    res.status(200).json({
       user: {
         id: user.id,
-        authId: user.authId,
+        clerkUserId: user.authId,
         email: user.email,
         firstName: user.firstName,
+        modelPreference: user.modelPreference,
+        currentSubscriptionId: user.currentSubscriptionId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
-      message: 'Profile updated successfully'
+      message: 'User profile updated successfully'
     });
   } catch (error) {
-    console.error('[Server] Profile update error:', error);
-    
+    console.error('[Server] ❌ Profile update error:', error);
+
     if (error.code === 'P1017' || error.message.includes('Server has closed the connection')) {
       res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
     } else {
-      res.status(500).json({ error: 'Failed to update profile' });
+      res.status(500).json({
+        error: 'Failed to update user profile'
+      });
     }
   }
 });
