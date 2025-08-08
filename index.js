@@ -15,7 +15,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.22.2';
+const latestVersion = '1.23.2';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -95,8 +95,8 @@ const handleAuthError = (req, res, next) => {
 
 app.use(handleAuthError);
 
-app.use('/api/conversations', conversationRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/v1/conversations', conversationRoutes);
+app.use('/v1/messages', messageRoutes);
 
 app.use('/v1/financial/income', incomeRoutes);
 app.use('/v1/financial/debt', debtRoutes);
@@ -319,10 +319,10 @@ app.get('/v1/user/me', requireAuth(), async (req, res) => {
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
     const clerkUserId = req.auth.userId;
-    console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
+    // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const user = await getUserByClerkId(clerkUserId);
-    console.log('[Server] 📥 User found: ', user);
+    // console.log('[Server] 📥 User found: ', user);
 
     res.status(200).json({
       user: {
@@ -355,10 +355,21 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
 
 app.put('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
-    console.log('[Server] 📥 Update user/profile req: ', req.body);
+    const timestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'America/Denver',
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    console.log(`[Server] 📥 Requesting user profile update at: ${timestamp}`);
+    // console.log('[Server] 📥 Update user/profile req: ', req.body);
 
     const clerkUserId = req.auth.userId;
-    console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
+    // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const { email, firstName } = req.body;
 
@@ -370,7 +381,7 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
       }
     });
 
-    console.log('[Server] 📥 User updated: ', user);
+    // console.log('[Server] 📥 User updated: ', user);
 
     res.status(200).json({
       user: {
@@ -536,8 +547,8 @@ app.get('/v1/status', async (req, res) => {
       '/v1/financial/savings',
       '/v1/financial/all',
       // Message & Conversation API endpoints
-      '/api/conversations',
-      '/api/messages',
+      '/v1/conversations',
+      '/v1/messages',
       // Status endpoint
       '/v1/status',
       // Webhook endpoints

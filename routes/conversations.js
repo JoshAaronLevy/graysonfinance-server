@@ -12,7 +12,7 @@ import { getMessages } from '../services/messageService.js';
 const router = express.Router();
 
 /**
- * POST /api/conversations
+ * POST /v1/conversations
  * Create a new conversation
  */
 router.post('/', requireAuth(), async (req, res) => {
@@ -48,7 +48,7 @@ router.post('/', requireAuth(), async (req, res) => {
 });
 
 /**
- * GET /api/conversations/:chatType
+ * GET /v1/conversations/:chatType
  * Get conversation by chat type for the authenticated user
  */
 router.get('/:chatType', requireAuth(), async (req, res) => {
@@ -78,7 +78,7 @@ router.get('/:chatType', requireAuth(), async (req, res) => {
 });
 
 /**
- * GET /api/conversations/:conversationId/messages
+ * GET /v1/conversations/:conversationId/messages
  * Get all messages for a specific conversation
  */
 router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
@@ -129,7 +129,7 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
 });
 
 /**
- * GET /api/conversations
+ * GET /v1/conversations
  * Get all conversations for the authenticated user
  */
 router.get('/', requireAuth(), async (req, res) => {

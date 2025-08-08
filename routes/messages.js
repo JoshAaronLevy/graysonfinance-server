@@ -12,7 +12,7 @@ import {
 const router = express.Router();
 
 /**
- * POST /api/messages
+ * POST /v1/messages
  * Add a single message to a conversation
  */
 router.post('/', requireAuth(), async (req, res) => {
@@ -56,7 +56,7 @@ router.post('/', requireAuth(), async (req, res) => {
 });
 
 /**
- * POST /api/messages/pair
+ * POST /v1/messages/pair
  * Add both user message and bot response in a single transaction
  */
 router.post('/pair', requireAuth(), async (req, res) => {
@@ -93,7 +93,7 @@ router.post('/pair', requireAuth(), async (req, res) => {
 });
 
 /**
- * DELETE /api/messages/:messageId
+ * DELETE /v1/messages/:messageId
  * Delete a specific message
  */
 router.delete('/:messageId', requireAuth(), async (req, res) => {
@@ -122,7 +122,7 @@ router.delete('/:messageId', requireAuth(), async (req, res) => {
 });
 
 /**
- * GET /api/messages/count/:conversationId
+ * GET /v1/messages/count/:conversationId
  * Get message count for a conversation
  */
 router.get('/count/:conversationId', requireAuth(), async (req, res) => {
