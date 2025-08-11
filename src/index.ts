@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import { requireAuth } from '@clerk/express';
 import { clerkClient } from '@clerk/clerk-sdk-node';
 import { testConnection } from './db/neon.js';
-// import clerkWebhookRouter from './routes/webhooks/clerk.js';
+import clerkWebhookRouter from './routes/webhooks/clerk.js';
 import conversationRoutes from './routes/conversations.js';
 import messageRoutes from './routes/messages.js';
 import incomeRoutes from './routes/financial/income.js';
@@ -71,7 +71,7 @@ app.use(cors({
   ].filter((url): url is string => Boolean(url))
 }));
 
-// app.use('/v1/webhooks', clerkWebhookRouter);
+app.use('/v1/webhooks', clerkWebhookRouter);
 
 app.use(express.json());
 
@@ -135,8 +135,6 @@ app.delete('/v1/income-sources/:id', requireAuth(), (req: Request, res: Response
   incomeRoutes(req, res, next);
 });
 
-// TODO: Enable webhook routes when needed
-// app.use('/v1/webhooks', clerkWebhookRouter);
 
 interface AppIdMap {
   [key: string]: string | undefined;
@@ -571,6 +569,15 @@ app.get('/v1/user-data', requireAuth(), async (req: Request, res: Response) => {
       res.status(500).json({ error: 'Failed to retrieve user data' });
     }
   }
+});
+
+app.get('/v1/status', (req: Request, res: Response) => {
+  res.json({
+    status: 'running',
+    version: latestVersion,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 app.get('/v1/health', (req: Request, res: Response) => {
