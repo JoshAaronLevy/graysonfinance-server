@@ -596,6 +596,11 @@ app.get('/v1/status', asyncHandler(async (req, res) => {
 // Use centralized error middleware
 app.use(errorMiddleware);
 
+// Global 404 handler - MUST be after all route definitions
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
+});
+
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
