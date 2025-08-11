@@ -1,13 +1,15 @@
 import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { getUserByClerkId } from '../middleware/auth.js';
-import { 
-  findOrCreateConversation, 
-  getConversationByType, 
+import {
+  findOrCreateConversation,
+  getConversationByType,
   getConversationById,
-  getUserConversations 
+  getUserConversations
 } from '../services/conversationService.js';
 import { getMessages } from '../services/messageService.js';
+import { asyncHandler } from '../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../src/errors/index.js';
 
 const router = express.Router();
 
@@ -15,51 +17,55 @@ const router = express.Router();
  * POST /v1/conversations
  * Create a new conversation
  */
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { chatType, difyConversationId } = req.body;
     
     if (!chatType) {
-      return res.status(400).json({ error: 'Missing required field: chatType' });
+      throw new ValidationError('Missing required field: chatType');
     }
 
     const validChatTypes = ['INCOME', 'DEBT', 'EXPENSES', 'SAVINGS', 'OPEN_CHAT'];
     if (!validChatTypes.includes(chatType.toUpperCase())) {
-      return res.status(400).json({ 
-        error: 'Invalid chatType. Must be one of: ' + validChatTypes.join(', ') 
+      throw new ValidationError('Invalid chatType. Must be one of: ' + validChatTypes.join(', '), {
+        chatType,
+        validTypes: validChatTypes
       });
     }
 
     const conversation = await findOrCreateConversation(
-      user.id, 
-      chatType, 
+      user.id,
+      chatType,
       difyConversationId
     );
     
-    res.status(201).json({ 
-      success: true, 
-      data: conversation 
+    res.status(201).json({
+      success: true,
+      data: conversation
     });
   } catch (error) {
-    console.error('Error creating conversation:', error);
-    res.status(500).json({ error: 'Failed to create conversation' });
+    return next(wrapError('[POST /v1/conversations] create conversation', error, {
+      chatType: req.body.chatType,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * GET /v1/conversations/:chatType
  * Get conversation by chat type for the authenticated user
  */
-router.get('/:chatType', requireAuth(), async (req, res) => {
+router.get('/:chatType', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { chatType } = req.params;
     
     const validChatTypes = ['income', 'debt', 'expenses', 'savings', 'open_chat'];
     if (!validChatTypes.includes(chatType.toLowerCase())) {
-      return res.status(400).json({ 
-        error: 'Invalid chatType. Must be one of: ' + validChatTypes.join(', ') 
+      throw new ValidationError('Invalid chatType. Must be one of: ' + validChatTypes.join(', '), {
+        chatType,
+        validTypes: validChatTypes
       });
     }
 
@@ -72,16 +78,18 @@ router.get('/:chatType', requireAuth(), async (req, res) => {
       data: conversation // Will be null if not found, or the conversation object if found
     });
   } catch (error) {
-    console.error('Error fetching conversation:', error);
-    res.status(500).json({ error: 'Failed to fetch conversation' });
+    return next(wrapError(`[GET /v1/conversations/${req.params.chatType}] fetch conversation by type`, error, {
+      chatType: req.params.chatType,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * GET /v1/conversations/:conversationId/messages
  * Get all messages for a specific conversation
  */
-router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
+router.get('/:conversationId/messages', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
@@ -104,8 +112,8 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
       orderBy: orderBy === 'desc' ? 'desc' : 'asc'
     });
     
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         conversation: {
           id: conversation.id,
@@ -123,29 +131,34 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching conversation messages:', error);
-    res.status(500).json({ error: 'Failed to fetch conversation messages' });
+    return next(wrapError(`[GET /v1/conversations/${req.params.conversationId}/messages] fetch conversation messages`, error, {
+      conversationId: req.params.conversationId,
+      userId: req.auth().userId,
+      limit: req.query.limit,
+      offset: req.query.offset
+    }));
   }
-});
+}));
 
 /**
  * GET /v1/conversations
  * Get all conversations for the authenticated user
  */
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     
     const conversations = await getUserConversations(user.id);
     
-    res.json({ 
-      success: true, 
-      data: conversations 
+    res.json({
+      success: true,
+      data: conversations
     });
   } catch (error) {
-    console.error('Error fetching user conversations:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    return next(wrapError('[GET /v1/conversations] fetch user conversations', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 export default router;

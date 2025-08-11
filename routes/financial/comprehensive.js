@@ -2,12 +2,14 @@ import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { PrismaClient } from '@prisma/client';
 import { getUserByClerkId } from '../../middleware/auth.js';
+import { asyncHandler } from '../../src/utils/asyncHandler.js';
+import { wrapError } from '../../src/errors/index.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get all financial data for user (for LLM context)
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     
@@ -46,9 +48,10 @@ router.get('/', requireAuth(), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching all financial data:', error);
-    res.status(500).json({ error: 'Failed to fetch financial data' });
+    return next(wrapError('[GET /v1/financial/all] fetch comprehensive financial data', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 export default router;

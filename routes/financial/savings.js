@@ -2,12 +2,14 @@ import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { PrismaClient } from '@prisma/client';
 import { getUserByClerkId } from '../../middleware/auth.js';
+import { asyncHandler } from '../../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../../src/errors/index.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get all savings sources for user
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const savingsSources = await prisma.savingsSource.findMany({
@@ -17,19 +19,22 @@ router.get('/', requireAuth(), async (req, res) => {
     
     res.json({ success: true, data: savingsSources });
   } catch (error) {
-    console.error('Error fetching savings sources:', error);
-    res.status(500).json({ error: 'Failed to fetch savings sources' });
+    return next(wrapError('[GET /v1/financial/savings] fetch savings sources', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 // Create new savings source
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
-      return res.status(400).json({ error: 'Missing required fields: sourceName, amount, frequency' });
+      throw new ValidationError('Missing required fields: sourceName, amount, frequency', {
+        provided: { sourceName: !!sourceName, amount: !!amount, frequency: !!frequency }
+      });
     }
     
     const savingsSource = await prisma.savingsSource.create({
@@ -44,13 +49,15 @@ router.post('/', requireAuth(), async (req, res) => {
     
     res.status(201).json({ success: true, data: savingsSource });
   } catch (error) {
-    console.error('Error creating savings source:', error);
-    res.status(500).json({ error: 'Failed to create savings source' });
+    return next(wrapError('[POST /v1/financial/savings] create savings source', error, {
+      userId: req.auth().userId,
+      sourceName: req.body.sourceName
+    }));
   }
-});
+}));
 
 // Update savings source
-router.put('/:id', requireAuth(), async (req, res) => {
+router.put('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -73,13 +80,15 @@ router.put('/:id', requireAuth(), async (req, res) => {
     const updatedSource = await prisma.savingsSource.findUnique({ where: { id } });
     res.json({ success: true, data: updatedSource });
   } catch (error) {
-    console.error('Error updating savings source:', error);
-    res.status(500).json({ error: 'Failed to update savings source' });
+    return next(wrapError(`[PUT /v1/financial/savings/${req.params.id}] update savings source`, error, {
+      userId: req.auth().userId,
+      savingsSourceId: req.params.id
+    }));
   }
-});
+}));
 
 // Delete savings source
-router.delete('/:id', requireAuth(), async (req, res) => {
+router.delete('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -94,9 +103,11 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     
     res.json({ success: true, message: 'Savings source deleted successfully' });
   } catch (error) {
-    console.error('Error deleting savings source:', error);
-    res.status(500).json({ error: 'Failed to delete savings source' });
+    return next(wrapError(`[DELETE /v1/financial/savings/${req.params.id}] delete savings source`, error, {
+      userId: req.auth().userId,
+      savingsSourceId: req.params.id
+    }));
   }
-});
+}));
 
 export default router;

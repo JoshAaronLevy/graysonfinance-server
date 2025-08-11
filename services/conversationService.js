@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { wrapError } from '../src/errors/index.js';
 
 const prisma = new PrismaClient();
 
@@ -41,8 +42,7 @@ export const findOrCreateConversation = async (userId, chatType, difyConversatio
 
     return conversation;
   } catch (error) {
-    console.error('Error in findOrCreateConversation:', error);
-    throw error;
+    throw wrapError('[ConversationService.findOrCreateConversation]', error, { userId, chatType });
   }
 };
 
@@ -68,8 +68,7 @@ export const getConversationByType = async (userId, chatType) => {
 
     return conversation;
   } catch (error) {
-    console.error('Error in getConversationByType:', error);
-    throw error;
+    throw wrapError('[ConversationService.getConversationByType]', error, { userId, chatType });
   }
 };
 
@@ -107,8 +106,7 @@ export const getConversationById = async (param) => {
 
     return conversation;
   } catch (error) {
-    console.error('Error in getConversationById:', error);
-    throw error;
+    throw wrapError('[ConversationService.getConversationById]', error, { param });
   }
 };
 
@@ -132,8 +130,7 @@ export const getUserConversations = async (userId) => {
 
     return conversations;
   } catch (error) {
-    console.error('Error in getUserConversations:', error);
-    throw error;
+    throw wrapError('[ConversationService.getUserConversations]', error, { userId });
   }
 };
 
@@ -151,7 +148,6 @@ export const updateConversationTimestamp = async (conversationId) => {
 
     return conversation;
   } catch (error) {
-    console.error('Error in updateConversationTimestamp:', error);
-    throw error;
+    throw wrapError('[ConversationService.updateConversationTimestamp]', error, { conversationId });
   }
 };

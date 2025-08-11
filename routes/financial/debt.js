@@ -2,12 +2,14 @@ import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { PrismaClient } from '@prisma/client';
 import { getUserByClerkId } from '../../middleware/auth.js';
+import { asyncHandler } from '../../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../../src/errors/index.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get all debt sources for user
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const debtSources = await prisma.debtSource.findMany({
@@ -17,19 +19,27 @@ router.get('/', requireAuth(), async (req, res) => {
     
     res.json({ success: true, data: debtSources });
   } catch (error) {
-    console.error('Error fetching debt sources:', error);
-    res.status(500).json({ error: 'Failed to fetch debt sources' });
+    return next(wrapError('[GET /v1/financial/debt] fetch debt sources', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 // Create new debt source
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, interestRate, minPayment, notes } = req.body;
     
     if (!sourceName || !amount || !frequency || !interestRate) {
-      return res.status(400).json({ error: 'Missing required fields: sourceName, amount, frequency, interestRate' });
+      throw new ValidationError('Missing required fields: sourceName, amount, frequency, interestRate', {
+        provided: {
+          sourceName: !!sourceName,
+          amount: !!amount,
+          frequency: !!frequency,
+          interestRate: !!interestRate
+        }
+      });
     }
     
     const debtSource = await prisma.debtSource.create({
@@ -46,13 +56,15 @@ router.post('/', requireAuth(), async (req, res) => {
     
     res.status(201).json({ success: true, data: debtSource });
   } catch (error) {
-    console.error('Error creating debt source:', error);
-    res.status(500).json({ error: 'Failed to create debt source' });
+    return next(wrapError('[POST /v1/financial/debt] create debt source', error, {
+      userId: req.auth().userId,
+      sourceName: req.body.sourceName
+    }));
   }
-});
+}));
 
 // Update debt source
-router.put('/:id', requireAuth(), async (req, res) => {
+router.put('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -77,13 +89,15 @@ router.put('/:id', requireAuth(), async (req, res) => {
     const updatedSource = await prisma.debtSource.findUnique({ where: { id } });
     res.json({ success: true, data: updatedSource });
   } catch (error) {
-    console.error('Error updating debt source:', error);
-    res.status(500).json({ error: 'Failed to update debt source' });
+    return next(wrapError(`[PUT /v1/financial/debt/${req.params.id}] update debt source`, error, {
+      userId: req.auth().userId,
+      debtSourceId: req.params.id
+    }));
   }
-});
+}));
 
 // Delete debt source
-router.delete('/:id', requireAuth(), async (req, res) => {
+router.delete('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -98,9 +112,11 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     
     res.json({ success: true, message: 'Debt source deleted successfully' });
   } catch (error) {
-    console.error('Error deleting debt source:', error);
-    res.status(500).json({ error: 'Failed to delete debt source' });
+    return next(wrapError(`[DELETE /v1/financial/debt/${req.params.id}] delete debt source`, error, {
+      userId: req.auth().userId,
+      debtSourceId: req.params.id
+    }));
   }
-});
+}));
 
 export default router;

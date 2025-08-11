@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { updateConversationTimestamp } from './conversationService.js';
+import { wrapError } from '../src/errors/index.js';
 
 const prisma = new PrismaClient();
 
@@ -36,8 +37,7 @@ export const addMessage = async (conversationId, role, content, meta = null) => 
 
     return message;
   } catch (error) {
-    console.error('Error in addMessage:', error);
-    throw error;
+    throw wrapError('[MessageService.addMessage]', error, { conversationId, role });
   }
 };
 
@@ -72,8 +72,7 @@ export const getMessages = async (conversationId, options = {}) => {
 
     return messages;
   } catch (error) {
-    console.error('Error in getMessages:', error);
-    throw error;
+    throw wrapError('[MessageService.getMessages]', error, { conversationId, limit, offset, orderBy });
   }
 };
 
@@ -100,8 +99,7 @@ export const getLatestMessage = async (conversationId) => {
 
     return message;
   } catch (error) {
-    console.error('Error in getLatestMessage:', error);
-    throw error;
+    throw wrapError('[MessageService.getLatestMessage]', error, { conversationId });
   }
 };
 
@@ -118,8 +116,7 @@ export const getMessageCount = async (conversationId) => {
 
     return count;
   } catch (error) {
-    console.error('Error in getMessageCount:', error);
-    throw error;
+    throw wrapError('[MessageService.getMessageCount]', error, { conversationId });
   }
 };
 
@@ -154,8 +151,7 @@ export const deleteMessage = async (messageId, userId) => {
 
     return true;
   } catch (error) {
-    console.error('Error in deleteMessage:', error);
-    throw error;
+    throw wrapError('[MessageService.deleteMessage]', error, { messageId, userId });
   }
 };
 
@@ -196,8 +192,11 @@ export const addMessagePair = async (conversationId, userMessage, botResponse) =
 
     return result;
   } catch (error) {
-    console.error('Error in addMessagePair:', error);
-    throw error;
+    throw wrapError('[MessageService.addMessagePair]', error, {
+      conversationId,
+      hasUserMessage: !!userMessage,
+      hasBotResponse: !!botResponse
+    });
   }
 };
 
@@ -235,7 +234,9 @@ export const addMessages = async (conversationId, messages) => {
 
     return createdMessages;
   } catch (error) {
-    console.error('Error in addMessages:', error);
-    throw error;
+    throw wrapError('[MessageService.addMessages]', error, {
+      conversationId,
+      messageCount: messages?.length
+    });
   }
 };

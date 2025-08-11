@@ -9,6 +9,8 @@ import {
   getMessageCount,
   getMessages
 } from '../services/messageService.js';
+import { asyncHandler } from '../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../src/errors/index.js';
 
 const router = express.Router();
 
@@ -33,7 +35,7 @@ const validateConversationId = (conversationId) => {
  * POST /:conversationId/messages
  * Add a message to a specific conversation (new param-aware endpoint)
  */
-router.post('/:conversationId/messages', requireAuth(), async (req, res) => {
+router.post('/:conversationId/messages', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
@@ -41,14 +43,15 @@ router.post('/:conversationId/messages', requireAuth(), async (req, res) => {
     
     // Validate conversationId parameter
     if (!validateConversationId(conversationId)) {
-      return res.status(400).json({
-        error: 'Invalid conversationId format. Must be UUID or hex string.'
+      throw new ValidationError('Invalid conversationId format. Must be UUID or hex string.', {
+        conversationId
       });
     }
     
     if (!userMessage || !botResponse) {
-      return res.status(400).json({
-        error: 'Missing required fields: userMessage, botResponse'
+      throw new ValidationError('Missing required fields: userMessage, botResponse', {
+        hasUserMessage: !!userMessage,
+        hasBotResponse: !!botResponse
       });
     }
 
@@ -69,16 +72,18 @@ router.post('/:conversationId/messages', requireAuth(), async (req, res) => {
       data: messages
     });
   } catch (error) {
-    console.error('Error adding message:', error);
-    res.status(500).json({ error: 'Failed to add message' });
+    return next(wrapError(`[POST /:conversationId/messages] add message pair`, error, {
+      conversationId: req.params.conversationId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * GET /:conversationId/messages
  * Get all messages for a specific conversation (new param-aware endpoint)
  */
-router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
+router.get('/:conversationId/messages', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
@@ -86,8 +91,8 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
     
     // Validate conversationId parameter
     if (!validateConversationId(conversationId)) {
-      return res.status(400).json({
-        error: 'Invalid conversationId format. Must be UUID or hex string.'
+      throw new ValidationError('Invalid conversationId format. Must be UUID or hex string.', {
+        conversationId
       });
     }
     
@@ -126,30 +131,35 @@ router.get('/:conversationId/messages', requireAuth(), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching conversation messages:', error);
-    res.status(500).json({ error: 'Failed to fetch conversation messages' });
+    return next(wrapError(`[GET /:conversationId/messages] fetch conversation messages`, error, {
+      conversationId: req.params.conversationId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * POST /v1/messages (legacy endpoint - keep for backward compatibility)
  * Add a single message to a conversation
  */
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId, sender, content } = req.body;
     
     if (!conversationId || !sender || !content) {
-      return res.status(400).json({
-        error: 'Missing required fields: conversationId, sender, content'
+      throw new ValidationError('Missing required fields: conversationId, sender, content', {
+        hasConversationId: !!conversationId,
+        hasSender: !!sender,
+        hasContent: !!content
       });
     }
 
     const validSenders = ['USER', 'BOT'];
     if (!validSenders.includes(sender.toUpperCase())) {
-      return res.status(400).json({
-        error: 'Invalid sender. Must be USER or BOT'
+      throw new ValidationError('Invalid sender. Must be USER or BOT', {
+        sender,
+        validSenders
       });
     }
 
@@ -170,23 +180,27 @@ router.post('/', requireAuth(), async (req, res) => {
       data: message
     });
   } catch (error) {
-    console.error('Error adding message:', error);
-    res.status(500).json({ error: 'Failed to add message' });
+    return next(wrapError(`[POST /v1/messages] add single message`, error, {
+      conversationId: req.body.conversationId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * POST /v1/messages/pair
  * Add both user message and bot response in a single transaction
  */
-router.post('/pair', requireAuth(), async (req, res) => {
+router.post('/pair', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId, userMessage, botResponse } = req.body;
     
     if (!conversationId || !userMessage || !botResponse) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: conversationId, userMessage, botResponse' 
+      throw new ValidationError('Missing required fields: conversationId, userMessage, botResponse', {
+        hasConversationId: !!conversationId,
+        hasUserMessage: !!userMessage,
+        hasBotResponse: !!botResponse
       });
     }
 
@@ -202,21 +216,23 @@ router.post('/pair', requireAuth(), async (req, res) => {
 
     const messages = await addMessagePair(conversationId, userMessage, botResponse);
     
-    res.status(201).json({ 
-      success: true, 
-      data: messages 
+    res.status(201).json({
+      success: true,
+      data: messages
     });
   } catch (error) {
-    console.error('Error adding message pair:', error);
-    res.status(500).json({ error: 'Failed to add message pair' });
+    return next(wrapError(`[POST /v1/messages/pair] add message pair`, error, {
+      conversationId: req.body.conversationId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * DELETE /v1/messages/:messageId
  * Delete a specific message
  */
-router.delete('/:messageId', requireAuth(), async (req, res) => {
+router.delete('/:messageId', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { messageId } = req.params;
@@ -227,25 +243,27 @@ router.delete('/:messageId', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Message not found or unauthorized' });
     }
     
-    res.json({ 
-      success: true, 
-      message: 'Message deleted successfully' 
+    res.json({
+      success: true,
+      message: 'Message deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting message:', error);
     if (error.message === 'Message not found or unauthorized') {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Failed to delete message' });
+      return res.status(404).json({ error: error.message });
     }
+    
+    return next(wrapError(`[DELETE /v1/messages/${req.params.messageId}] delete message`, error, {
+      messageId: req.params.messageId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 /**
  * GET /v1/messages/count/:conversationId
  * Get message count for a conversation
  */
-router.get('/count/:conversationId', requireAuth(), async (req, res) => {
+router.get('/count/:conversationId', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
@@ -262,17 +280,19 @@ router.get('/count/:conversationId', requireAuth(), async (req, res) => {
 
     const count = await getMessageCount(conversationId);
     
-    res.json({ 
-      success: true, 
-      data: { 
-        conversationId, 
-        messageCount: count 
-      } 
+    res.json({
+      success: true,
+      data: {
+        conversationId,
+        messageCount: count
+      }
     });
   } catch (error) {
-    console.error('Error getting message count:', error);
-    res.status(500).json({ error: 'Failed to get message count' });
+    return next(wrapError(`[GET /v1/messages/count/${req.params.conversationId}] get message count`, error, {
+      conversationId: req.params.conversationId,
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 export default router;

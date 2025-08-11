@@ -2,12 +2,14 @@ import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { PrismaClient } from '@prisma/client';
 import { getUserByClerkId } from '../../middleware/auth.js';
+import { asyncHandler } from '../../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../../src/errors/index.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get all expense sources for user
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const expenseSources = await prisma.expenseSource.findMany({
@@ -17,19 +19,22 @@ router.get('/', requireAuth(), async (req, res) => {
     
     res.json({ success: true, data: expenseSources });
   } catch (error) {
-    console.error('Error fetching expense sources:', error);
-    res.status(500).json({ error: 'Failed to fetch expense sources' });
+    return next(wrapError('[GET /v1/financial/expenses] fetch expense sources', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 // Create new expense source
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
-      return res.status(400).json({ error: 'Missing required fields: sourceName, amount, frequency' });
+      throw new ValidationError('Missing required fields: sourceName, amount, frequency', {
+        provided: { sourceName: !!sourceName, amount: !!amount, frequency: !!frequency }
+      });
     }
     
     const expenseSource = await prisma.expenseSource.create({
@@ -44,13 +49,15 @@ router.post('/', requireAuth(), async (req, res) => {
     
     res.status(201).json({ success: true, data: expenseSource });
   } catch (error) {
-    console.error('Error creating expense source:', error);
-    res.status(500).json({ error: 'Failed to create expense source' });
+    return next(wrapError('[POST /v1/financial/expenses] create expense source', error, {
+      userId: req.auth().userId,
+      sourceName: req.body.sourceName
+    }));
   }
-});
+}));
 
 // Update expense source
-router.put('/:id', requireAuth(), async (req, res) => {
+router.put('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -73,13 +80,15 @@ router.put('/:id', requireAuth(), async (req, res) => {
     const updatedSource = await prisma.expenseSource.findUnique({ where: { id } });
     res.json({ success: true, data: updatedSource });
   } catch (error) {
-    console.error('Error updating expense source:', error);
-    res.status(500).json({ error: 'Failed to update expense source' });
+    return next(wrapError(`[PUT /v1/financial/expenses/${req.params.id}] update expense source`, error, {
+      userId: req.auth().userId,
+      expenseSourceId: req.params.id
+    }));
   }
-});
+}));
 
 // Delete expense source
-router.delete('/:id', requireAuth(), async (req, res) => {
+router.delete('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -94,9 +103,11 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     
     res.json({ success: true, message: 'Expense source deleted successfully' });
   } catch (error) {
-    console.error('Error deleting expense source:', error);
-    res.status(500).json({ error: 'Failed to delete expense source' });
+    return next(wrapError(`[DELETE /v1/financial/expenses/${req.params.id}] delete expense source`, error, {
+      userId: req.auth().userId,
+      expenseSourceId: req.params.id
+    }));
   }
-});
+}));
 
 export default router;

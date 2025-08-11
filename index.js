@@ -13,7 +13,11 @@ import debtRoutes from './routes/financial/debt.js';
 import expensesRoutes from './routes/financial/expenses.js';
 import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
+// import financialRoutes from './routes/financial.js';
 import { PrismaClient } from '@prisma/client';
+import { errorMiddleware } from './src/middleware/error.js';
+import { asyncHandler } from './src/utils/asyncHandler.js';
+import { wrapError } from './src/errors/index.js';
 
 const latestVersion = '1.25.2';
 
@@ -24,18 +28,14 @@ const prisma = new PrismaClient({
 
 dotenv.config();
 
-process.on('uncaughtException', (error) => {
-  console.error('[Server] 💥 Uncaught Exception:', error);
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED_REJECTION', reason);
+  if (process.env.NODE_ENV === 'production') process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Server] 💥 Unhandled Rejection at:', promise, 'reason:', reason);
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT_EXCEPTION', err);
+  if (process.env.NODE_ENV === 'production') process.exit(1);
 });
 
 process.on('SIGTERM', async () => {
@@ -98,11 +98,12 @@ app.use(handleAuthError);
 // Import income conversation routes
 import incomeConversationRoutes from './routes/conversations/income.js';
 
-app.use('/v1/conversations', conversationRoutes);
+// Mount specific conversation routes BEFORE the general wildcard routes
 app.use('/v1/conversations/income', incomeConversationRoutes);
+app.use('/v1/conversations', conversationRoutes);
 
-// Mount message routes under both prefixes with auth protection
-app.use(['/v1/messages', '/v1/conversations'], requireAuth(), messageRoutes);
+// Mount message routes only under /v1/messages to avoid conflicts
+app.use('/v1/messages', requireAuth(), messageRoutes);
 
 app.use('/v1/financial/income', incomeRoutes);
 
@@ -178,10 +179,25 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
       conversationId: existingConversation?.id || null
     });
   } catch (error) {
+    // TODO(josh): Database connection lost handling seems inconsistent - should this return error or fallback?
+    if (error.message.includes('Database connection lost') || error.code === 'P1017') {
+      console.warn('[Server] Database unavailable for conversation check, returning opener only');
+      return res.json({
+        answer: opener,
+        hasExistingConversation: false,
+        conversationId: null
+      });
+    }
+    
     console.error('[Server] Error in opening endpoint:', error);
     
     if (error.message.includes('Database connection lost') || error.code === 'P1017') {
       console.warn('[Server] Database unavailable for conversation check, returning opener only');
+      return res.json({
+        answer: opener,
+        hasExistingConversation: false,
+        conversationId: null
+      });
     }
     
     res.json({
@@ -330,27 +346,22 @@ async function getUserByClerkId(clerkUserId) {
     
     return user;
   } catch (error) {
-    console.error('[Server] 💥 Database error in getUserByClerkId:', error);
-    
     if (error.code === 'P1017' || error.message.includes('Server has closed the connection')) {
-      throw new Error('Database connection lost. Please check your database connection and try again.');
+      throw wrapError('[getUserByClerkId] database connection lost', error, { clerkUserId });
     }
     
-    throw error;
+    throw wrapError('[getUserByClerkId] find or create user', error, { clerkUserId });
   }
 }
 
-app.get('/v1/user/me', requireAuth(), async (req, res) => {
+app.get('/v1/user/me', requireAuth(), asyncHandler(async (req, res) => {
   res.json({ auth: req.auth() });
-});
+}));
 
-app.get('/v1/user/profile', requireAuth(), async (req, res) => {
+app.get('/v1/user/profile', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const clerkUserId = req.auth().userId;
-    // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
-
     const user = await getUserByClerkId(clerkUserId);
-    // console.log('[Server] 📥 User found: ', user);
 
     res.status(200).json({
       user: {
@@ -366,22 +377,21 @@ app.get('/v1/user/profile', requireAuth(), async (req, res) => {
       message: 'User profile retrieved successfully'
     });
   } catch (error) {
-    console.error('[Server] ❌ Profile retrieval error:', error);
-
+    // TODO(josh): Database connection lost handling should be standardized
     if (error.message.includes('Database connection lost')) {
-      res.status(503).json({
+      return res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
-    } else {
-      res.status(500).json({
-        error: 'Failed to retrieve user profile'
-      });
     }
+    
+    return next(wrapError('[GET /v1/user/profile] retrieve user profile', error, {
+      clerkUserId: req.auth().userId
+    }));
   }
-});
+}));
 
-app.put('/v1/user/profile', requireAuth(), async (req, res) => {
+app.put('/v1/user/profile', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const timestamp = new Date().toLocaleString('en-US', {
       timeZone: 'America/Denver',
@@ -394,11 +404,8 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
       hour12: true
     });
     console.log(`[Server] 📥 Requesting user profile update at: ${timestamp}`);
-    // console.log('[Server] 📥 Update user/profile req: ', req.body);
 
     const clerkUserId = req.auth().userId;
-    // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
-
     const { email, firstName } = req.body;
 
     const user = await prisma.user.update({
@@ -408,8 +415,6 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
         ...(firstName && { firstName })
       }
     });
-
-    // console.log('[Server] 📥 User updated: ', user);
 
     res.status(200).json({
       user: {
@@ -425,22 +430,23 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
       message: 'User profile updated successfully'
     });
   } catch (error) {
-    console.error('[Server] ❌ Profile update error:', error);
-
+    // TODO(josh): Database connection error handling should be standardized
     if (error.code === 'P1017' || error.message.includes('Server has closed the connection')) {
-      res.status(503).json({
+      return res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
-    } else {
-      res.status(500).json({
-        error: 'Failed to update user profile'
-      });
     }
+    
+    return next(wrapError('[PUT /v1/user/profile] update user profile', error, {
+      clerkUserId: req.auth().userId,
+      hasEmail: !!req.body.email,
+      hasFirstName: !!req.body.firstName
+    }));
   }
-});
+}));
 
-app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
+app.get('/v1/user/financial-data', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
@@ -475,20 +481,21 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[Server] Financial data error:', error);
-    
+    // TODO(josh): Database connection lost handling should be standardized
     if (error.message.includes('Database connection lost') || error.code === 'P1017') {
-      res.status(503).json({
+      return res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
-    } else {
-      res.status(500).json({ error: 'Failed to retrieve financial data' });
     }
+    
+    return next(wrapError('[GET /v1/user/financial-data] retrieve financial data', error, {
+      clerkUserId: req.auth().userId
+    }));
   }
-});
+}));
 
-app.get('/v1/user-data', requireAuth(), async (req, res) => {
+app.get('/v1/user-data', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
@@ -530,20 +537,21 @@ app.get('/v1/user-data', requireAuth(), async (req, res) => {
       message: 'User data retrieved successfully'
     });
   } catch (error) {
-    console.error('[Server] User data error:', error);
-    
+    // TODO(josh): Database connection lost handling should be standardized
     if (error.message.includes('Database connection lost') || error.code === 'P1017') {
-      res.status(503).json({
+      return res.status(503).json({
         error: 'Service temporarily unavailable',
         message: 'Database connection issue. Please try again in a moment.'
       });
-    } else {
-      res.status(500).json({ error: 'Failed to retrieve user data' });
     }
+    
+    return next(wrapError('[GET /v1/user-data] retrieve user data', error, {
+      clerkUserId: req.auth().userId
+    }));
   }
-});
+}));
 
-app.get('/v1/status', async (req, res) => {
+app.get('/v1/status', asyncHandler(async (req, res) => {
   let dbStatus = 'unknown';
   try {
     const dbResult = await sql`SELECT 1 as test`;
@@ -583,33 +591,10 @@ app.get('/v1/status', async (req, res) => {
       '/v1/webhooks'
     ]
   });
-});
+}));
 
-// Global error handler middleware
-app.use((err, req, res, next) => {
-  console.error('[Server] Error:', err);
-  
-  // Handle Clerk auth errors
-  if (err.message?.includes('Unauthorized') || err.status === 401) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  // Handle validation errors
-  if (err.name === 'ValidationError' || err.status === 422) {
-    return res.status(422).json({
-      error: 'Validation failed',
-      details: err.details || err.message
-    });
-  }
-  
-  // Generic server error
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// Global 404 handler - MUST be after all route definitions
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Not Found' });
-});
+// Use centralized error middleware
+app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 3000;
 

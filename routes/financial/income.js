@@ -2,12 +2,14 @@ import express from 'express';
 import { requireAuth } from '@clerk/express';
 import { PrismaClient } from '@prisma/client';
 import { getUserByClerkId } from '../../middleware/auth.js';
+import { asyncHandler } from '../../src/utils/asyncHandler.js';
+import { wrapError, ValidationError } from '../../src/errors/index.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get all income sources for user
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const incomeSources = await prisma.incomeSource.findMany({
@@ -17,19 +19,22 @@ router.get('/', requireAuth(), async (req, res) => {
     
     res.json({ success: true, data: incomeSources });
   } catch (error) {
-    console.error('Error fetching income sources:', error);
-    res.status(500).json({ error: 'Failed to fetch income sources' });
+    return next(wrapError('[GET /v1/financial/income] fetch income sources', error, {
+      userId: req.auth().userId
+    }));
   }
-});
+}));
 
 // Create new income source
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { sourceName, amount, frequency, notes } = req.body;
     
     if (!sourceName || !amount || !frequency) {
-      return res.status(400).json({ error: 'Missing required fields: sourceName, amount, frequency' });
+      throw new ValidationError('Missing required fields: sourceName, amount, frequency', {
+        provided: { sourceName: !!sourceName, amount: !!amount, frequency: !!frequency }
+      });
     }
     
     const incomeSource = await prisma.incomeSource.create({
@@ -44,13 +49,15 @@ router.post('/', requireAuth(), async (req, res) => {
     
     res.status(201).json({ success: true, data: incomeSource });
   } catch (error) {
-    console.error('Error creating income source:', error);
-    res.status(500).json({ error: 'Failed to create income source' });
+    return next(wrapError('[POST /v1/financial/income] create income source', error, {
+      userId: req.auth().userId,
+      sourceName: req.body.sourceName
+    }));
   }
-});
+}));
 
 // Update income source
-router.put('/:id', requireAuth(), async (req, res) => {
+router.put('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -73,13 +80,15 @@ router.put('/:id', requireAuth(), async (req, res) => {
     const updatedSource = await prisma.incomeSource.findUnique({ where: { id } });
     res.json({ success: true, data: updatedSource });
   } catch (error) {
-    console.error('Error updating income source:', error);
-    res.status(500).json({ error: 'Failed to update income source' });
+    return next(wrapError(`[PUT /v1/financial/income/${req.params.id}] update income source`, error, {
+      userId: req.auth().userId,
+      incomeSourceId: req.params.id
+    }));
   }
-});
+}));
 
 // Delete income source
-router.delete('/:id', requireAuth(), async (req, res) => {
+router.delete('/:id', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
     const user = await getUserByClerkId(req.auth().userId);
     const { id } = req.params;
@@ -94,9 +103,11 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     
     res.json({ success: true, message: 'Income source deleted successfully' });
   } catch (error) {
-    console.error('Error deleting income source:', error);
-    res.status(500).json({ error: 'Failed to delete income source' });
+    return next(wrapError(`[DELETE /v1/financial/income/${req.params.id}] delete income source`, error, {
+      userId: req.auth().userId,
+      incomeSourceId: req.params.id
+    }));
   }
-});
+}));
 
 export default router;

@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "start:probe": "node --import ./dev/route-parse-probe.mjs index.js",
     "dev": "nodemon index.js",
     "migrate": "node scripts/run-migrations.js",
     "db:migrate": "node scripts/migrate.js",
