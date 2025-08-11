@@ -1,6 +1,6 @@
 {
   "name": "graysonfinance-server",
-  "version": "1.23.2",
+  "version": "1.25.2",
   "description": "Node.js server for Grayson Finance, a personal finance management tool.",
   "type": "module",
   "main": "index.js",
@@ -36,6 +36,7 @@
     "svix": "^1.70.0"
   },
   "devDependencies": {
+    "express-list-endpoints": "^7.1.1",
     "tsx": "^4.20.3"
   }
 }

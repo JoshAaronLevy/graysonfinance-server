@@ -69,7 +69,7 @@ export const getUserByClerkId = async (clerkUserId) => {
 export const attachUser = async (req, res, next) => {
   try {
     if (!req.auth()?.userId) {
-      return res.status(401).json({ error: 'Unauthorized - No Clerk user ID found' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const user = await getUserByClerkId(req.auth().userId);
@@ -79,4 +79,35 @@ export const attachUser = async (req, res, next) => {
     console.error('Error in attachUser middleware:', error);
     res.status(500).json({ error: 'Failed to authenticate user' });
   }
+};
+
+/**
+ * Custom auth middleware that ensures JSON responses
+ * Use this instead of requireAuth() for API endpoints that need guaranteed JSON
+ */
+export const requireJsonAuth = () => {
+  return async (req, res, next) => {
+    try {
+      // First check if we have auth
+      if (!req.auth || typeof req.auth !== 'function') {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const auth = req.auth();
+      if (!auth?.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get user and attach to request
+      const user = await getUserByClerkId(auth.userId);
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error('Error in requireJsonAuth:', error);
+      if (error.message.includes('Unauthorized') || error.message.includes('authentication')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      res.status(500).json({ error: 'Authentication failed' });
+    }
+  };
 };

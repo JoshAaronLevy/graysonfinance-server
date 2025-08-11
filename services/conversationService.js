@@ -74,14 +74,19 @@ export const getConversationByType = async (userId, chatType) => {
 };
 
 /**
- * Get conversation by its ID
- * @param {string} conversationId - The conversation's database ID
+ * Get conversation by its ID (accepts either Prisma primary key or Dify conversationId)
+ * @param {string} param - Either the conversation's database ID (UUID) or Dify conversationId (string)
  * @returns {Promise<Object|null>} The conversation object or null if not found
  */
-export const getConversationById = async (conversationId) => {
+export const getConversationById = async (param) => {
   try {
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        OR: [
+          { id: param },
+          { conversationId: param }
+        ]
+      },
       include: {
         messages: {
           orderBy: { createdAt: 'asc' }
@@ -95,6 +100,10 @@ export const getConversationById = async (conversationId) => {
         }
       }
     });
+
+    // Add debug logging
+    console.log('[Messages] Resolving param', param,
+                '→ DB id', conversation?.id, '→ Dify id', conversation?.conversationId);
 
     return conversation;
   } catch (error) {

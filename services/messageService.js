@@ -6,17 +6,19 @@ const prisma = new PrismaClient();
 /**
  * Add a message to a conversation
  * @param {string} conversationId - The conversation's database ID
- * @param {string} sender - The message sender ('USER' or 'BOT')
+ * @param {string} role - The message role ('user', 'assistant', or 'system')
  * @param {string} content - The message content
+ * @param {Object} meta - Optional metadata for the message
  * @returns {Promise<Object>} The created message object
  */
-export const addMessage = async (conversationId, sender, content) => {
+export const addMessage = async (conversationId, role, content, meta = null) => {
   try {
     const message = await prisma.message.create({
       data: {
         conversationId,
-        sender: sender.toUpperCase(),
-        content
+        role: role.toLowerCase(),
+        content,
+        meta
       },
       include: {
         conversation: {
@@ -170,7 +172,7 @@ export const addMessagePair = async (conversationId, userMessage, botResponse) =
       const userMsg = await tx.message.create({
         data: {
           conversationId,
-          sender: 'USER',
+          role: 'user',
           content: userMessage
         }
       });
@@ -178,7 +180,7 @@ export const addMessagePair = async (conversationId, userMessage, botResponse) =
       const botMsg = await tx.message.create({
         data: {
           conversationId,
-          sender: 'BOT',
+          role: 'assistant',
           content: botResponse
         }
       });
@@ -195,6 +197,45 @@ export const addMessagePair = async (conversationId, userMessage, botResponse) =
     return result;
   } catch (error) {
     console.error('Error in addMessagePair:', error);
+    throw error;
+  }
+};
+
+/**
+ * Add multiple messages to a conversation
+ * @param {string} conversationId - The conversation's database ID
+ * @param {Array} messages - Array of message objects with { role, content, meta? }
+ * @returns {Promise<Array>} Array of created message objects
+ */
+export const addMessages = async (conversationId, messages) => {
+  try {
+    const createdMessages = await prisma.$transaction(async (tx) => {
+      const newMessages = [];
+      
+      for (const message of messages) {
+        const newMessage = await tx.message.create({
+          data: {
+            conversationId,
+            role: message.role.toLowerCase(),
+            content: message.content,
+            meta: message.meta || null
+          }
+        });
+        newMessages.push(newMessage);
+      }
+
+      // Update conversation timestamp
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return newMessages;
+    });
+
+    return createdMessages;
+  } catch (error) {
+    console.error('Error in addMessages:', error);
     throw error;
   }
 };

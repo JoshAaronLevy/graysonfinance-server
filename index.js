@@ -15,7 +15,7 @@ import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
 import { PrismaClient } from '@prisma/client';
 
-const latestVersion = '1.23.2';
+const latestVersion = '1.25.2';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -95,10 +95,38 @@ const handleAuthError = (req, res, next) => {
 
 app.use(handleAuthError);
 
+// Import income conversation routes
+import incomeConversationRoutes from './routes/conversations/income.js';
+
 app.use('/v1/conversations', conversationRoutes);
-app.use('/v1/messages', messageRoutes);
+app.use('/v1/conversations/income', incomeConversationRoutes);
+
+// Mount message routes under both prefixes with auth protection
+app.use(['/v1/messages', '/v1/conversations'], requireAuth(), messageRoutes);
 
 app.use('/v1/financial/income', incomeRoutes);
+
+// Add income-sources alias endpoint
+app.post('/v1/income-sources', requireAuth(), (req, res, next) => {
+  // Reuse the existing income routes handler
+  req.url = '/';
+  incomeRoutes(req, res, next);
+});
+app.get('/v1/income-sources', requireAuth(), (req, res, next) => {
+  // Reuse the existing income routes handler
+  req.url = '/';
+  incomeRoutes(req, res, next);
+});
+app.put('/v1/income-sources/:id', requireAuth(), (req, res, next) => {
+  // Reuse the existing income routes handler - preserve the :id param
+  req.url = `/${req.params.id}`;
+  incomeRoutes(req, res, next);
+});
+app.delete('/v1/income-sources/:id', requireAuth(), (req, res, next) => {
+  // Reuse the existing income routes handler - preserve the :id param
+  req.url = `/${req.params.id}`;
+  incomeRoutes(req, res, next);
+});
 app.use('/v1/financial/debt', debtRoutes);
 app.use('/v1/financial/expenses', expensesRoutes);
 app.use('/v1/financial/savings', savingsRoutes);
@@ -138,7 +166,7 @@ app.post('/v1/opening/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     const { getConversationByType } = await import('./services/conversationService.js');
     
@@ -180,7 +208,7 @@ app.post('/v1/conversations/:type', requireAuth(), async (req, res) => {
   }
 
   try {
-    const user = await getUserByClerkId(req.auth.userId);
+    const user = await getUserByClerkId(req.auth().userId);
     
     const { findOrCreateConversation } = await import('./services/conversationService.js');
     const { addMessagePair } = await import('./services/messageService.js');
@@ -313,12 +341,12 @@ async function getUserByClerkId(clerkUserId) {
 }
 
 app.get('/v1/user/me', requireAuth(), async (req, res) => {
-  res.json({ auth: req.auth });
+  res.json({ auth: req.auth() });
 });
 
 app.get('/v1/user/profile', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const user = await getUserByClerkId(clerkUserId);
@@ -368,7 +396,7 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
     console.log(`[Server] 📥 Requesting user profile update at: ${timestamp}`);
     // console.log('[Server] 📥 Update user/profile req: ', req.body);
 
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     // console.log('[Server] 📥 Clerk user ID: ', clerkUserId);
 
     const { email, firstName } = req.body;
@@ -414,7 +442,7 @@ app.put('/v1/user/profile', requireAuth(), async (req, res) => {
 
 app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
@@ -462,7 +490,7 @@ app.get('/v1/user/financial-data', requireAuth(), async (req, res) => {
 
 app.get('/v1/user-data', requireAuth(), async (req, res) => {
   try {
-    const clerkUserId = req.auth.userId;
+    const clerkUserId = req.auth().userId;
     const user = await getUserByClerkId(clerkUserId);
     
     const [incomeSources, debtSources, expenseSources, savingsSources] = await Promise.all([
@@ -555,6 +583,32 @@ app.get('/v1/status', async (req, res) => {
       '/v1/webhooks'
     ]
   });
+});
+
+// Global error handler middleware
+app.use((err, req, res, next) => {
+  console.error('[Server] Error:', err);
+  
+  // Handle Clerk auth errors
+  if (err.message?.includes('Unauthorized') || err.status === 401) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  // Handle validation errors
+  if (err.name === 'ValidationError' || err.status === 422) {
+    return res.status(422).json({
+      error: 'Validation failed',
+      details: err.details || err.message
+    });
+  }
+  
+  // Generic server error
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// Global 404 handler - MUST be after all route definitions
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Not Found' });
 });
 
 const PORT = process.env.PORT || 3000;

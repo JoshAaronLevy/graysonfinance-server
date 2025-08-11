@@ -107,21 +107,24 @@ model Conversation {
   userId         String    @map("user_id")
   chatType       ChatType  @map("chat_type")
   conversationId String    @unique @map("conversation_id")
+  status         String    @default("open")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages       Message[]
 
+  @@unique([userId, chatType], map: "conversations_user_id_chat_type_key")
   @@map("conversations")
 }
 
 model Message {
-  id             String        @id @default(uuid())
-  conversationId String        @map("conversation_id")
-  sender         MessageSender
+  id             String       @id @default(uuid())
+  conversationId String       @map("conversation_id")
+  role           MessageRole
   content        String
-  createdAt      DateTime      @default(now()) @map("created_at")
-  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  meta           Json?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }
@@ -140,7 +143,8 @@ enum ChatType {
   OPEN_CHAT
 }
 
-enum MessageSender {
-  USER
-  BOT
+enum MessageRole {
+  user
+  assistant
+  system
 }
