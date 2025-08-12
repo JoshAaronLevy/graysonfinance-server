@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireAuth } from '@clerk/express';
+import axios from 'axios';
 import { getUserByClerkId } from '../middleware/auth.js';
 import { getConversationById } from '../services/conversationService.js';
 import {
@@ -10,12 +11,25 @@ import {
   getMessages
 } from '../services/messageService.js';
 import { asyncHandler } from '../src/utils/asyncHandler.js';
-import { wrapError, ValidationError } from '../src/errors/index.js';
+import { wrapError, ValidationError, ExternalServiceError } from '../src/errors/index.js';
+import { normalizeDifyResponse } from '../src/lib/dify-normalizer.js';
 
 const router = express.Router();
 
+// Environment variables for Dify integration
+const DIFY_API_KEY = process.env.DIFY_API_KEY;
+const DIFY_APP_ID = process.env.DIFY_GRAYSON_FINANCE_APP_ID; // Public app, not PRO
+
+if (!DIFY_API_KEY) {
+  console.error('[Message Routes] ❌ DIFY_API_KEY is missing');
+}
+
+if (!DIFY_APP_ID) {
+  console.error('[Message Routes] ❌ DIFY_GRAYSON_FINANCE_APP_ID is missing');
+}
+
 /**
- * Validate conversationId parameter (UUID or hex format)
+ * Validate conversationId parameter (UUID, hex format, or Dify conversation ID)
  */
 const validateConversationId = (conversationId) => {
   if (!conversationId || typeof conversationId !== 'string') {
@@ -28,25 +42,150 @@ const validateConversationId = (conversationId) => {
   // Check for hex format (alphanumeric)
   const hexRegex = /^[0-9a-f]+$/i;
   
-  return uuidRegex.test(conversationId) || (hexRegex.test(conversationId) && conversationId.length >= 8);
+  // Check for Dify conversation ID format (alphanumeric with dashes/underscores)
+  const difyIdRegex = /^[a-zA-Z0-9\-_]+$/;
+  
+  return uuidRegex.test(conversationId) ||
+         (hexRegex.test(conversationId) && conversationId.length >= 8) ||
+         (difyIdRegex.test(conversationId) && conversationId.length >= 8);
+};
+
+/**
+ * Check if conversationId is a Dify conversation ID (public, no auth required)
+ */
+const isDifyConversationId = (conversationId) => {
+  if (!conversationId || typeof conversationId !== 'string') {
+    return false;
+  }
+  
+  // Dify conversation IDs are typically longer alphanumeric strings with dashes
+  // They don't match UUID format and are usually longer than simple hex IDs
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const simpleHexRegex = /^[0-9a-f]+$/i;
+  
+  // If it matches UUID or simple hex, it's not a Dify ID
+  if (uuidRegex.test(conversationId) || simpleHexRegex.test(conversationId)) {
+    return false;
+  }
+  
+  // If it contains dashes or underscores and is alphanumeric, likely Dify
+  const difyIdRegex = /^[a-zA-Z0-9\-_]+$/;
+  return difyIdRegex.test(conversationId) && conversationId.length >= 8;
 };
 
 /**
  * POST /:conversationId/messages
- * Add a message to a specific conversation (new param-aware endpoint)
+ * Add a message to a specific conversation (handles both authenticated DB conversations and public Dify conversations)
  */
-router.post('/:conversationId/messages', requireAuth(), asyncHandler(async (req, res, next) => {
+router.post('/:conversationId/messages', asyncHandler(async (req, res, next) => {
   try {
-    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
-    const { userMessage, botResponse } = req.body;
     
     // Validate conversationId parameter
     if (!validateConversationId(conversationId)) {
-      throw new ValidationError('Invalid conversationId format. Must be UUID or hex string.', {
+      throw new ValidationError('Invalid conversationId format. Must be UUID, hex string, or Dify conversation ID.', {
         conversationId
       });
     }
+    
+    // Try to find conversation in database first
+    let conversation = null;
+    
+    try {
+      conversation = await getConversationById(conversationId);
+    } catch (error) {
+      // If error finding conversation, it might be a Dify-only conversation
+      console.log(`[Messages] 📥 Conversation not found in DB, treating as Dify: ${conversationId}`);
+    }
+    
+    // If no conversation found in DB, treat as public Dify conversation
+    if (!conversation) {
+      console.log(`[Messages] 📥 Public Dify message request: ${conversationId}`);
+      
+      const { query } = req.body;
+      
+      // Validate input for Dify conversations
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        const error = new ValidationError('query is required for Dify conversations');
+        error.code = 'BAD_REQUEST';
+        throw error;
+      }
+      
+      // Ensure required environment variables are present
+      if (!DIFY_API_KEY || !DIFY_APP_ID) {
+        const error = new ExternalServiceError('Dify', 'Configuration error: missing API credentials');
+        error.code = 'INTERNAL_ERROR';
+        error.status = 500;
+        throw error;
+      }
+      
+      // Prepare headers for Dify API call
+      const headers = {
+        'Authorization': `Bearer ${DIFY_API_KEY}`,
+        'Content-Type': 'application/json',
+        'x-api-app-id': DIFY_APP_ID
+      };
+      
+      // Make request to Dify API
+      const difyResponse = await axios.post(
+        'https://api.dify.ai/v1/chat-messages',
+        {
+          query: query.trim(),
+          inputs: { topic: 'debt' },
+          response_mode: 'blocking',
+          conversation_id: conversationId,
+          user: 'public-user' // Anonymous user identifier
+        },
+        {
+          headers,
+          timeout: 30000 // 30 second timeout
+        }
+      );
+      
+      // Use normalizer to extract correct flags from parsed JSON content
+      const normalized = normalizeDifyResponse(difyResponse.data);
+      
+      // Format response to match expected message structure
+      const response = {
+        success: true,
+        data: {
+          userMessage: {
+            role: 'user',
+            content: query.trim(),
+            createdAt: new Date().toISOString()
+          },
+          botResponse: {
+            role: 'assistant',
+            content: normalized.text || 'I apologize, but I was unable to process your debt information. Please try again.',
+            userData: {
+              valid: normalized.valid,
+              isValid: normalized.isValid,
+              ambiguous: normalized.ambiguous
+            },
+            metadata: normalized.outputs,
+            createdAt: new Date().toISOString()
+          },
+          conversation_id: normalized.conversation_id
+        }
+      };
+      
+      console.log(`[Messages] ✅ Dify message processed successfully:`, {
+        conversationId: normalized.conversation_id
+      });
+      
+      return res.status(201).json(response);
+    }
+    
+    // For database conversations, require authentication
+    if (!req.auth || !req.auth().userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required for database conversations'
+      });
+    }
+    
+    const user = await getUserByClerkId(req.auth().userId);
+    const { userMessage, botResponse } = req.body;
     
     if (!userMessage || !botResponse) {
       throw new ValidationError('Missing required fields: userMessage, botResponse', {
@@ -55,12 +194,6 @@ router.post('/:conversationId/messages', requireAuth(), asyncHandler(async (req,
       });
     }
 
-    // Verify the conversation belongs to the user
-    const conversation = await getConversationById(conversationId);
-    if (!conversation) {
-      return res.status(404).json({ error: 'Conversation not found' });
-    }
-    
     if (conversation.userId !== user.id) {
       return res.status(403).json({ error: 'Access denied to this conversation' });
     }
@@ -72,35 +205,98 @@ router.post('/:conversationId/messages', requireAuth(), asyncHandler(async (req,
       data: messages
     });
   } catch (error) {
-    return next(wrapError(`[POST /:conversationId/messages] add message pair`, error, {
+    // Handle Dify-specific errors
+    if (error.response?.status) {
+      // Dify API error
+      const status = error.response.status;
+      const errorData = error.response.data || error.message;
+      
+      const difyError = new ExternalServiceError('Dify', 'Dify call failed', { status, errorData });
+      difyError.code = 'UPSTREAM_ERROR';
+      difyError.status = 502;
+      return next(difyError);
+    } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      const timeoutError = new ExternalServiceError('Dify', 'Dify call failed', { timeout: true });
+      timeoutError.code = 'UPSTREAM_ERROR';
+      timeoutError.status = 502;
+      return next(timeoutError);
+    } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      const networkError = new ExternalServiceError('Dify', 'Dify call failed', { networkError: true });
+      networkError.code = 'UPSTREAM_ERROR';
+      networkError.status = 502;
+      return next(networkError);
+    }
+    
+    const userId = req.auth?.()?.userId || 'public-user';
+    return next(wrapError(`[POST /:conversationId/messages] add message`, error, {
       conversationId: req.params.conversationId,
-      userId: req.auth().userId
+      userId: userId
     }));
   }
 }));
 
 /**
  * GET /:conversationId/messages
- * Get all messages for a specific conversation (new param-aware endpoint)
+ * Get all messages for a specific conversation (handles both authenticated DB conversations and public Dify conversations)
  */
-router.get('/:conversationId/messages', requireAuth(), asyncHandler(async (req, res, next) => {
+router.get('/:conversationId/messages', asyncHandler(async (req, res, next) => {
   try {
-    const user = await getUserByClerkId(req.auth().userId);
     const { conversationId } = req.params;
     const { limit = 50, offset = 0, orderBy = 'asc' } = req.query;
     
     // Validate conversationId parameter
     if (!validateConversationId(conversationId)) {
-      throw new ValidationError('Invalid conversationId format. Must be UUID or hex string.', {
+      throw new ValidationError('Invalid conversationId format. Must be UUID, hex string, or Dify conversation ID.', {
         conversationId
       });
     }
     
-    // Verify the conversation belongs to the user
-    const conversation = await getConversationById(conversationId);
-    if (!conversation) {
-      return res.status(404).json({ error: 'Conversation not found' });
+    // Try to find conversation in database first
+    let conversation = null;
+    let requiresAuth = true;
+    
+    try {
+      conversation = await getConversationById(conversationId);
+    } catch (error) {
+      // If error finding conversation, it might be a Dify-only conversation
+      console.log(`[Messages] 📥 Conversation not found in DB, treating as Dify: ${conversationId}`);
     }
+    
+    // If no conversation found in DB, treat as public Dify conversation
+    if (!conversation) {
+      console.log(`[Messages] 📥 Public Dify conversation request: ${conversationId}`);
+      
+      // For public Dify conversations, we don't store message history in our DB
+      // Return empty messages with appropriate structure
+      return res.json({
+        success: true,
+        data: {
+          conversation: {
+            id: conversationId,
+            chatType: 'DEBT', // Assume debt for Dify conversations
+            conversationId: conversationId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          messages: [],
+          pagination: {
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            total: 0
+          }
+        }
+      });
+    }
+    
+    // For database conversations, require authentication
+    if (!req.auth || !req.auth().userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required for database conversations'
+      });
+    }
+    
+    const user = await getUserByClerkId(req.auth().userId);
     
     if (conversation.userId !== user.id) {
       return res.status(403).json({ error: 'Access denied to this conversation' });
@@ -131,9 +327,10 @@ router.get('/:conversationId/messages', requireAuth(), asyncHandler(async (req, 
       }
     });
   } catch (error) {
+    const userId = req.auth?.()?.userId || 'public-user';
     return next(wrapError(`[GET /:conversationId/messages] fetch conversation messages`, error, {
       conversationId: req.params.conversationId,
-      userId: req.auth().userId
+      userId: userId
     }));
   }
 }));

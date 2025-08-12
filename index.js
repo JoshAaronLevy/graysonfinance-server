@@ -23,7 +23,7 @@ import { errorMiddleware } from './src/middleware/error.js';
 import { asyncHandler } from './src/utils/asyncHandler.js';
 import { wrapError } from './src/errors/index.js';
 
-const latestVersion = '1.27.5';
+const latestVersion = '1.30.5';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -102,15 +102,17 @@ const handleAuthError = (req, res, next) => {
 
 app.use(handleAuthError);
 
-// Import income conversation routes
+// Import conversation routes
 import incomeConversationRoutes from './routes/conversations/income.js';
+import debtConversationRoutes from './routes/conversations/debt.js';
 
 // Mount specific conversation routes BEFORE the general wildcard routes
 app.use('/v1/conversations/income', incomeConversationRoutes);
+app.use('/v1/conversations/debt', debtConversationRoutes); // Public debt conversation routes (no auth)
 app.use('/v1/conversations', conversationRoutes);
 
-// Mount message routes only under /v1/messages to avoid conflicts
-app.use('/v1/messages', requireAuth(), messageRoutes);
+// Mount message routes (now handles both authenticated and public conversations)
+app.use('/v1/messages', messageRoutes);
 
 app.use('/v1/financial/income', incomeRoutes);
 
