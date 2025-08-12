@@ -13,13 +13,17 @@ import debtRoutes from './routes/financial/debt.js';
 import expensesRoutes from './routes/financial/expenses.js';
 import savingsRoutes from './routes/financial/savings.js';
 import comprehensiveRoutes from './routes/financial/comprehensive.js';
+import difyIncomeRoutes from './routes/dify/income.js';
+import difyDebtRoutes from './routes/dify/debt.js';
+import difyExpensesRoutes from './routes/dify/expenses.js';
+import difySavingsRoutes from './routes/dify/savings.js';
 // import financialRoutes from './routes/financial.js';
 import { PrismaClient } from '@prisma/client';
 import { errorMiddleware } from './src/middleware/error.js';
 import { asyncHandler } from './src/utils/asyncHandler.js';
 import { wrapError } from './src/errors/index.js';
 
-const latestVersion = '1.25.2';
+const latestVersion = '1.27.5';
 
 const prisma = new PrismaClient({
   log: ['error', 'warn'],
@@ -59,7 +63,10 @@ app.use(cors({
     'http://localhost:3001',
     'http://localhost:5173',
     process.env.FRONTEND_URL
-  ].filter(Boolean)
+  ].filter(Boolean),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+  optionsSuccessStatus: 200 // For legacy browser support
 }));
 
 app.use('/v1/webhooks', clerkWebhookRouter);
@@ -132,6 +139,12 @@ app.use('/v1/financial/debt', debtRoutes);
 app.use('/v1/financial/expenses', expensesRoutes);
 app.use('/v1/financial/savings', savingsRoutes);
 app.use('/v1/financial/all', comprehensiveRoutes);
+
+// Public Dify routes (no auth required)
+app.use('/v1/dify/income', difyIncomeRoutes);
+app.use('/v1/dify/debt', difyDebtRoutes);
+app.use('/v1/dify/expenses', difyExpensesRoutes);
+app.use('/v1/dify/savings', difySavingsRoutes);
 
 const APP_ID_MAP = {
   income: process.env.DIFY_GRAYSON_FINANCE_APP_ID,
