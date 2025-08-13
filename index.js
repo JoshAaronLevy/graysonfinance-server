@@ -315,9 +315,6 @@ async function getUserByClerkId(clerkUserId) {
     });
     
     if (!user) {
-      console.log(`[Server] 👤 Creating new user for Clerk ID: ${clerkUserId}`);
-      
-      // Fetch full user data from Clerk before creating user
       let clerkUser = null;
       let email = null;
       let firstName = null;
@@ -408,18 +405,6 @@ app.get('/v1/user/profile', requireAuth(), asyncHandler(async (req, res, next) =
 
 app.put('/v1/user/profile', requireAuth(), asyncHandler(async (req, res, next) => {
   try {
-    const timestamp = new Date().toLocaleString('en-US', {
-      timeZone: 'America/Denver',
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-    console.log(`[Server] 📥 Requesting user profile update at: ${timestamp}`);
-
     const clerkUserId = req.auth().userId;
     const { email, firstName } = req.body;
 

@@ -23,9 +23,6 @@ if (!DIFY_APP_ID) {
  * Public endpoint for logged-out debt analysis
  */
 router.post('/analyze', asyncHandler(async (req, res, next) => {
-  // Request logging
-  console.log(`[Dify Debt] 📥 ${req.method} ${req.originalUrl}`);
-  
   try {
     const { query, conversationId } = req.body;
     
@@ -81,8 +78,6 @@ router.post('/analyze', asyncHandler(async (req, res, next) => {
       outputs: normalized.outputs,
       raw: normalized.raw
     };
-    
-    console.log(`[Dify Debt] ✅ Analysis completed successfully`);
     
     res.status(200).json(mappedResponse);
     

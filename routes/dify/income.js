@@ -32,9 +32,6 @@ if (!DIFY_APP_ID) {
  * }
  */
 router.post('/analyze', asyncHandler(async (req, res, next) => {
-  // Request logging
-  console.log(`[Dify Income] 📥 ${req.method} ${req.originalUrl}`);
-  
   try {
     const { query } = req.body;
     
@@ -94,8 +91,6 @@ router.post('/analyze', asyncHandler(async (req, res, next) => {
       },
       raw: normalized.raw
     };
-    
-    console.log(`[Dify Income] ✅ Analysis completed successfully`);
     
     res.status(200).json(mappedResponse);
     
